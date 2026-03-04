@@ -1,0 +1,29 @@
+{
+  "collectionName": "components_general_seos",
+  "info": {
+    "displayName": "seo",
+    "icon": "check"
+  },
+  "options": {},
+  "attributes": {
+    "meta_title": {
+      "type": "text"
+    },
+    "meta_description": {
+      "type": "text"
+    },
+    "robots": {
+      "type": "enumeration",
+      "enum": [
+        "index, follow",
+        "noindex, nofollow",
+        "index, nofollow",
+        "noindex, follow"
+      ]
+    },
+    "canonical": {
+      "type": "string"
+    }
+  },
+  "config": {}
+}
