@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "blog_categories",
+  "collectionName": "blog_posts",
   "info": {
-    "singularName": "blog-category",
-    "pluralName": "blog-categories",
-    "displayName": "Blog Category"
+    "singularName": "blog-post",
+    "pluralName": "blog-posts",
+    "displayName": "Blog Post"
   },
   "options": {
     "draftAndPublish": true
@@ -31,6 +31,14 @@
         }
       }
     },
+    "excerpt": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
     "coverImage": {
       "type": "media",
       "pluginOptions": {
@@ -46,8 +54,20 @@
         "audios"
       ]
     },
-    "image_header_license": {
-      "type": "string",
+    "categories": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::blog-category.blog-category",
+      "mappedBy": "blog_posts"
+    },
+    "author": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::author.author",
+      "inversedBy": "blog_posts"
+    },
+    "featured": {
+      "type": "boolean",
       "pluginOptions": {
         "i18n": {
           "localized": true
@@ -62,37 +82,20 @@
         }
       },
       "component": "general.seo",
-      "repeatable": false
+      "repeatable": true
     },
-    "h1": {
-      "type": "text",
+    "content": {
+      "type": "dynamiczone",
       "pluginOptions": {
         "i18n": {
           "localized": true
         }
-      }
-    },
-    "slogan": {
-      "type": "text",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
-    },
-    "excerpt": {
-      "type": "blocks",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
-    },
-    "blog_posts": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "api::blog-post.blog-post",
-      "inversedBy": "categories"
+      },
+      "components": [
+        "blog.rich-text",
+        "blog.quote",
+        "blog.image"
+      ]
     }
   }
 }

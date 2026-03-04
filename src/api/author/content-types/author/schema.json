@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "blog_categories",
+  "collectionName": "authors",
   "info": {
-    "singularName": "blog-category",
-    "pluralName": "blog-categories",
-    "displayName": "Blog Category"
+    "singularName": "author",
+    "pluralName": "authors",
+    "displayName": "Author"
   },
   "options": {
     "draftAndPublish": true
@@ -15,7 +15,7 @@
     }
   },
   "attributes": {
-    "title": {
+    "name": {
       "type": "string",
       "pluginOptions": {
         "i18n": {
@@ -31,7 +31,7 @@
         }
       }
     },
-    "coverImage": {
+    "avatar": {
       "type": "media",
       "pluginOptions": {
         "i18n": {
@@ -46,41 +46,7 @@
         "audios"
       ]
     },
-    "image_header_license": {
-      "type": "string",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
-    },
-    "seo": {
-      "type": "component",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      },
-      "component": "general.seo",
-      "repeatable": false
-    },
-    "h1": {
-      "type": "text",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
-    },
-    "slogan": {
-      "type": "text",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
-    },
-    "excerpt": {
+    "bio": {
       "type": "blocks",
       "pluginOptions": {
         "i18n": {
@@ -90,9 +56,9 @@
     },
     "blog_posts": {
       "type": "relation",
-      "relation": "manyToMany",
+      "relation": "oneToMany",
       "target": "api::blog-post.blog-post",
-      "inversedBy": "categories"
+      "mappedBy": "author"
     }
   }
 }
