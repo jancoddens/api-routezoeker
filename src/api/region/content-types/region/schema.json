@@ -89,16 +89,6 @@
         }
       }
     },
-    "seo": {
-      "type": "component",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      },
-      "component": "general.seo",
-      "repeatable": false
-    },
     "boundary_geojson": {
       "type": "json",
       "pluginOptions": {
@@ -106,6 +96,12 @@
           "localized": true
         }
       }
+    },
+    "location_theme_pages": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::location-theme-page.location-theme-page",
+      "mappedBy": "region"
     }
   }
 }

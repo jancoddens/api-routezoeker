@@ -84,16 +84,6 @@
         "audios"
       ]
     },
-    "seo": {
-      "type": "component",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      },
-      "component": "general.seo",
-      "repeatable": false
-    },
     "description": {
       "type": "blocks",
       "pluginOptions": {
@@ -115,6 +105,12 @@
       "relation": "manyToMany",
       "target": "api::region.region",
       "mappedBy": "provinces"
+    },
+    "location_theme_pages": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::location-theme-page.location-theme-page",
+      "mappedBy": "province"
     }
   }
 }

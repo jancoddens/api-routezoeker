@@ -708,6 +708,10 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
       }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::city.city'>;
+    location_theme_pages: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::location-theme-page.location-theme-page'
+    >;
     longitude: Schema.Attribute.Decimal &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -730,12 +734,6 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
     province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;
     publishedAt: Schema.Attribute.DateTime;
     region: Schema.Attribute.Relation<'manyToOne', 'api::region.region'>;
-    seo: Schema.Attribute.Component<'general.seo', false> &
-      Schema.Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }>;
     slug: Schema.Attribute.UID<''> &
       Schema.Attribute.Required &
       Schema.Attribute.SetPluginOptions<{
@@ -806,6 +804,10 @@ export interface ApiCountryCountry extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::country.country'
     >;
+    location_theme_pages: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::location-theme-page.location-theme-page'
+    >;
     longitude: Schema.Attribute.Decimal &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -822,13 +824,68 @@ export interface ApiCountryCountry extends Struct.CollectionTypeSchema {
     provinces: Schema.Attribute.Relation<'oneToMany', 'api::province.province'>;
     publishedAt: Schema.Attribute.DateTime;
     regions: Schema.Attribute.Relation<'oneToMany', 'api::region.region'>;
+    slug: Schema.Attribute.UID<''> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiLocationThemePageLocationThemePage
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'location_theme_pages';
+  info: {
+    displayName: 'Location theme page';
+    pluralName: 'location-theme-pages';
+    singularName: 'location-theme-page';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    city: Schema.Attribute.Relation<'manyToOne', 'api::city.city'>;
+    content: Schema.Attribute.Blocks &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    country: Schema.Attribute.Relation<'manyToOne', 'api::country.country'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::location-theme-page.location-theme-page'
+    >;
+    province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;
+    publishedAt: Schema.Attribute.DateTime;
+    region: Schema.Attribute.Relation<'manyToOne', 'api::region.region'>;
     seo: Schema.Attribute.Component<'general.seo', false> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
         };
       }>;
-    slug: Schema.Attribute.UID<''> &
+    slug: Schema.Attribute.UID &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    theme: Schema.Attribute.Relation<'manyToOne', 'api::theme.theme'>;
+    title: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -898,6 +955,10 @@ export interface ApiProvinceProvince extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::province.province'
     >;
+    location_theme_pages: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::location-theme-page.location-theme-page'
+    >;
     longitude: Schema.Attribute.Decimal &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -913,12 +974,6 @@ export interface ApiProvinceProvince extends Struct.CollectionTypeSchema {
       }>;
     publishedAt: Schema.Attribute.DateTime;
     regions: Schema.Attribute.Relation<'manyToMany', 'api::region.region'>;
-    seo: Schema.Attribute.Component<'general.seo', false> &
-      Schema.Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }>;
     slug: Schema.Attribute.UID<''> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -980,6 +1035,10 @@ export interface ApiRegionRegion extends Struct.CollectionTypeSchema {
       }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::region.region'>;
+    location_theme_pages: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::location-theme-page.location-theme-page'
+    >;
     longitude: Schema.Attribute.Decimal &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -998,13 +1057,51 @@ export interface ApiRegionRegion extends Struct.CollectionTypeSchema {
       'api::province.province'
     >;
     publishedAt: Schema.Attribute.DateTime;
-    seo: Schema.Attribute.Component<'general.seo', false> &
+    slug: Schema.Attribute.UID &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
         };
       }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiThemeTheme extends Struct.CollectionTypeSchema {
+  collectionName: 'themes';
+  info: {
+    displayName: 'Theme';
+    pluralName: 'themes';
+    singularName: 'theme';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::theme.theme'>;
+    location_theme_pages: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::location-theme-page.location-theme-page'
+    >;
+    publishedAt: Schema.Attribute.DateTime;
     slug: Schema.Attribute.UID &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    title: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1532,8 +1629,10 @@ declare module '@strapi/strapi' {
       'api::blog-post.blog-post': ApiBlogPostBlogPost;
       'api::city.city': ApiCityCity;
       'api::country.country': ApiCountryCountry;
+      'api::location-theme-page.location-theme-page': ApiLocationThemePageLocationThemePage;
       'api::province.province': ApiProvinceProvince;
       'api::region.region': ApiRegionRegion;
+      'api::theme.theme': ApiThemeTheme;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

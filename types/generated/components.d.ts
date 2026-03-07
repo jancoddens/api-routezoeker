@@ -42,6 +42,7 @@ export interface GeneralSeo extends Struct.ComponentSchema {
     canonical: Schema.Attribute.String;
     meta_description: Schema.Attribute.Text;
     meta_title: Schema.Attribute.Text;
+    og_image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
     robots: Schema.Attribute.Enumeration<
       [
         'index, follow',
