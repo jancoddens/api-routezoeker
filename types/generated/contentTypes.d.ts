@@ -694,6 +694,12 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    featured: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     latitude: Schema.Attribute.Decimal &
       Schema.Attribute.SetPluginOptions<{
         i18n: {

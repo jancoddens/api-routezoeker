@@ -116,6 +116,14 @@
       "relation": "manyToOne",
       "target": "api::region.region",
       "inversedBy": "cities"
+    },
+    "featured": {
+      "type": "boolean",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     }
   }
 }
