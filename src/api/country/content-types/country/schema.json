@@ -80,6 +80,14 @@
         }
       }
     },
+    "excerpt": {
+      "type": "blocks",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
     "boundary_geojson": {
       "type": "json",
       "pluginOptions": {
