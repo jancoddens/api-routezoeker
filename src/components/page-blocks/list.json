@@ -1,0 +1,23 @@
+{
+  "collectionName": "components_page_blocks_lists",
+  "info": {
+    "displayName": "list",
+    "icon": "bulletList"
+  },
+  "options": {},
+  "attributes": {
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "type": {
+      "type": "enumeration",
+      "default": "list",
+      "enum": [
+        "list",
+        "map"
+      ]
+    }
+  },
+  "config": {}
+}

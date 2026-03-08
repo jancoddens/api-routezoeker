@@ -161,6 +161,19 @@ export interface PageBlocksImageText extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksList extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_lists';
+  info: {
+    displayName: 'list';
+    icon: 'bulletList';
+  };
+  attributes: {
+    active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    type: Schema.Attribute.Enumeration<['list', 'map']> &
+      Schema.Attribute.DefaultTo<'list'>;
+  };
+}
+
 export interface PageBlocksQuote extends Struct.ComponentSchema {
   collectionName: 'components_page_blocks_quotes';
   info: {
@@ -202,6 +215,7 @@ declare module '@strapi/strapi' {
       'page-blocks.image-carousel': PageBlocksImageCarousel;
       'page-blocks.image-gallery': PageBlocksImageGallery;
       'page-blocks.image-text': PageBlocksImageText;
+      'page-blocks.list': PageBlocksList;
       'page-blocks.quote': PageBlocksQuote;
       'page-blocks.text-section': PageBlocksTextSection;
     }
