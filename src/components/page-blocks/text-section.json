@@ -1,0 +1,27 @@
+{
+  "collectionName": "components_page_blocks_text_sections",
+  "info": {
+    "displayName": "text_section",
+    "icon": "bulletList"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "blocks"
+    },
+    "max_width": {
+      "type": "enumeration",
+      "default": "default",
+      "enum": [
+        "default",
+        "narrow",
+        "wide",
+        "full"
+      ]
+    }
+  },
+  "config": {}
+}

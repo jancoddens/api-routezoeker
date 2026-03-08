@@ -1,0 +1,43 @@
+{
+  "collectionName": "components_page_blocks_image_texts",
+  "info": {
+    "displayName": "image_text"
+  },
+  "options": {},
+  "attributes": {
+    "eyebrow": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "blocks"
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "image_position": {
+      "type": "enumeration",
+      "default": "right",
+      "enum": [
+        "left",
+        "right"
+      ]
+    },
+    "button_label": {
+      "type": "string"
+    },
+    "button_link": {
+      "type": "string"
+    }
+  },
+  "config": {}
+}

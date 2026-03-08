@@ -1,12 +1,12 @@
 {
-  "collectionName": "components_blog_quotes",
+  "collectionName": "components_page_blocks_quotes",
   "info": {
     "displayName": "quote"
   },
   "options": {},
   "attributes": {
     "text": {
-      "type": "text"
+      "type": "string"
     },
     "author": {
       "type": "string"

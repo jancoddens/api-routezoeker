@@ -1,0 +1,21 @@
+{
+  "collectionName": "components_page_blocks_image_carousels",
+  "info": {
+    "displayName": "image_carousel"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "item": {
+      "type": "component",
+      "component": "page-blocks.carousel-item",
+      "repeatable": true
+    }
+  },
+  "config": {}
+}

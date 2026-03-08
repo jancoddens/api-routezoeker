@@ -842,7 +842,19 @@ export interface ApiLocationThemePageLocationThemePage
   };
   attributes: {
     city: Schema.Attribute.Relation<'manyToOne', 'api::city.city'>;
-    content: Schema.Attribute.Blocks &
+    content: Schema.Attribute.DynamicZone<
+      [
+        'page-blocks.text-section',
+        'page-blocks.quote',
+        'page-blocks.image-text',
+        'page-blocks.image-gallery',
+        'page-blocks.image-carousel',
+        'page-blocks.hero-banner',
+        'page-blocks.carousel-item',
+        'page-blocks.cards',
+        'page-blocks.article-grid',
+      ]
+    > &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -852,6 +864,18 @@ export interface ApiLocationThemePageLocationThemePage
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    description: Schema.Attribute.Blocks &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    excerpt: Schema.Attribute.Blocks &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<
       'oneToMany',

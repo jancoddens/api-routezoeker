@@ -1,0 +1,22 @@
+{
+  "collectionName": "components_page_blocks_article_grids",
+  "info": {
+    "displayName": "article_grid",
+    "icon": "apps"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "card": {
+      "type": "component",
+      "component": "page-blocks.cards",
+      "repeatable": true
+    }
+  },
+  "config": {}
+}

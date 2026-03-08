@@ -1,0 +1,37 @@
+{
+  "collectionName": "components_page_blocks_image_galleries",
+  "info": {
+    "displayName": "image_gallery",
+    "icon": "landscape"
+  },
+  "options": {},
+  "attributes": {
+    "images": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "layout": {
+      "type": "enumeration",
+      "enum": [
+        "grid",
+        "masonry",
+        "hero"
+      ]
+    },
+    "show_button": {
+      "type": "boolean",
+      "default": true
+    },
+    "button_label": {
+      "type": "string",
+      "default": "Toon alle foto's"
+    }
+  },
+  "config": {}
+}

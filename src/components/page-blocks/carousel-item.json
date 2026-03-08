@@ -1,11 +1,16 @@
 {
-  "collectionName": "components_blog_images",
+  "collectionName": "components_page_blocks_carousel_items",
   "info": {
-    "displayName": "image",
-    "icon": "landscape"
+    "displayName": "carousel_item"
   },
   "options": {},
   "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
     "image": {
       "type": "media",
       "multiple": false,
@@ -15,6 +20,9 @@
         "videos",
         "audios"
       ]
+    },
+    "link": {
+      "type": "string"
     }
   },
   "config": {}
