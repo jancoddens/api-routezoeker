@@ -73,22 +73,6 @@
         "audios"
       ]
     },
-    "description": {
-      "type": "blocks",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
-    },
-    "excerpt": {
-      "type": "blocks",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
-    },
     "boundary_geojson": {
       "type": "json",
       "pluginOptions": {
