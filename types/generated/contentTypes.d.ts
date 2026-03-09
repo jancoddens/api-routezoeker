@@ -853,6 +853,7 @@ export interface ApiLocationThemePageLocationThemePage
         'page-blocks.carousel-item',
         'page-blocks.cards',
         'page-blocks.article-grid',
+        'page-blocks.list',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{

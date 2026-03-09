@@ -103,7 +103,8 @@
         "page-blocks.hero-banner",
         "page-blocks.carousel-item",
         "page-blocks.cards",
-        "page-blocks.article-grid"
+        "page-blocks.article-grid",
+        "page-blocks.list"
       ]
     }
   }
