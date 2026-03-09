@@ -185,6 +185,22 @@ export interface PageBlocksQuote extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksRegionSlider extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_region_sliders';
+  info: {
+    displayName: 'region_slider';
+  };
+  attributes: {
+    button_label: Schema.Attribute.String;
+    button_link: Schema.Attribute.String;
+    regions: Schema.Attribute.Relation<'oneToMany', 'api::region.region'>;
+    source: Schema.Attribute.Enumeration<['province', 'country', 'manual']> &
+      Schema.Attribute.DefaultTo<'province'>;
+    subtitle: Schema.Attribute.String;
+    title: Schema.Attribute.String;
+  };
+}
+
 export interface PageBlocksTextSection extends Struct.ComponentSchema {
   collectionName: 'components_page_blocks_text_sections';
   info: {
@@ -217,6 +233,7 @@ declare module '@strapi/strapi' {
       'page-blocks.image-text': PageBlocksImageText;
       'page-blocks.list': PageBlocksList;
       'page-blocks.quote': PageBlocksQuote;
+      'page-blocks.region-slider': PageBlocksRegionSlider;
       'page-blocks.text-section': PageBlocksTextSection;
     }
   }

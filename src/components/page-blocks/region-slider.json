@@ -1,0 +1,36 @@
+{
+  "collectionName": "components_page_blocks_region_sliders",
+  "info": {
+    "displayName": "region_slider"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "button_label": {
+      "type": "string"
+    },
+    "button_link": {
+      "type": "string"
+    },
+    "source": {
+      "type": "enumeration",
+      "default": "province",
+      "enum": [
+        "province",
+        "country",
+        "manual"
+      ]
+    },
+    "regions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::region.region"
+    }
+  },
+  "config": {}
+}
