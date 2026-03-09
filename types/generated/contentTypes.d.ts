@@ -850,10 +850,10 @@ export interface ApiLocationThemePageLocationThemePage
         'page-blocks.image-gallery',
         'page-blocks.image-carousel',
         'page-blocks.hero-banner',
-        'page-blocks.carousel-item',
         'page-blocks.cards',
         'page-blocks.article-grid',
         'page-blocks.list',
+        'page-blocks.region-slider',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
