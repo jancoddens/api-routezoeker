@@ -300,38 +300,76 @@ const extractRouteAreaFilter = (route: RouteEntity) => {
   };
 };
 
+const buildRouteBounds = (parsed: ParsedGpx) => {
+  let minLongitude = Number.POSITIVE_INFINITY;
+  let maxLongitude = Number.NEGATIVE_INFINITY;
+  let minLatitude = Number.POSITIVE_INFINITY;
+  let maxLatitude = Number.NEGATIVE_INFINITY;
+
+  for (const coordinate of parsed.routeGeometry.coordinates) {
+    minLongitude = Math.min(minLongitude, coordinate[0]);
+    maxLongitude = Math.max(maxLongitude, coordinate[0]);
+    minLatitude = Math.min(minLatitude, coordinate[1]);
+    maxLatitude = Math.max(maxLatitude, coordinate[1]);
+  }
+
+  return {
+    minLongitude,
+    maxLongitude,
+    minLatitude,
+    maxLatitude,
+  };
+};
+
 const findMatchedRouteNodes = async (
   strapi: Core.Strapi,
   route: RouteEntity,
   parsed: ParsedGpx
 ) => {
   const { provinceId, countryId } = extractRouteAreaFilter(route);
+  const bounds = buildRouteBounds(parsed);
+  const boundsPadding = 0.01;
 
-  if (!provinceId && !countryId) {
-    return [];
-  }
-
-  const candidates = (await strapi.entityService.findMany('api::node.node', {
-    filters: {
-      ...(provinceId
-        ? {
-            province: {
-              id: provinceId,
-            },
-          }
-        : {}),
-      ...(countryId
-        ? {
-            country: {
-              id: countryId,
-            },
-          }
-        : {}),
+  const baseFilters = {
+    latitude: {
+      $gte: bounds.minLatitude - boundsPadding,
+      $lte: bounds.maxLatitude + boundsPadding,
     },
-    fields: ['id', 'latitude', 'longitude'],
-    publicationState: 'preview',
-    limit: 50000,
-  })) as Array<{ id: number; latitude?: number | string | null; longitude?: number | string | null }>;
+    longitude: {
+      $gte: bounds.minLongitude - boundsPadding,
+      $lte: bounds.maxLongitude + boundsPadding,
+    },
+  };
+
+  const findCandidates = async (filters: Record<string, unknown>) =>
+    (await strapi.entityService.findMany('api::node.node', {
+      filters,
+      fields: ['id', 'latitude', 'longitude'],
+      publicationState: 'preview',
+      limit: 50000,
+    })) as Array<{ id: number; latitude?: number | string | null; longitude?: number | string | null }>;
+
+  let candidates = await findCandidates({
+    ...baseFilters,
+    ...(provinceId
+      ? {
+          province: {
+            id: provinceId,
+          },
+        }
+      : {}),
+    ...(countryId
+      ? {
+          country: {
+            id: countryId,
+          },
+        }
+      : {}),
+  });
+
+  if (candidates.length === 0) {
+    candidates = await findCandidates(baseFilters);
+  }
 
   const normalizedCandidates = candidates
     .map((candidate) => {
