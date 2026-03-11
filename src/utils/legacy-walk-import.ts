@@ -91,6 +91,11 @@ type UploadFileEntity = {
   url: string;
 };
 
+type UploadFolderEntity = {
+  id: number;
+  name: string;
+};
+
 type ImportSummary = {
   total: number;
   created: number;
@@ -146,6 +151,26 @@ const slugify = (value: string) =>
     .replace(/^-+|-+$/g, '');
 
 const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+const decodeHtmlEntities = (value: string) =>
+  value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+
+const htmlToPlainText = (value: string) =>
+  normalizeWhitespace(
+    decodeHtmlEntities(
+      value
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<[^>]+>/g, ' ')
+    )
+  );
 
 const toStringValue = (value: unknown) => {
   if (value === undefined || value === null) {
@@ -214,6 +239,26 @@ const mapDifficulty = (value: unknown) => {
   }
 
   return 'hard';
+};
+
+const mapLegacyTypeTags = (value: string | null) => {
+  const normalized = value?.trim().toLowerCase();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const tags: string[] = [];
+
+  if (normalized === 'city walk') {
+    tags.push('Stadswandeling');
+  }
+
+  if (normalized === 'forrest walk' || normalized === 'forest walk') {
+    tags.push('Boswandeling');
+  }
+
+  return tags;
 };
 
 const parseDurationMinutes = (value: unknown) => {
@@ -337,6 +382,7 @@ const findOneBySlugOrName = async (
     | 'api::province.province'
     | 'api::region.region'
     | 'api::city.city'
+    | 'api::tag.tag'
     | 'api::route-type.route-type'
     | 'api::route.route',
   slug: string,
@@ -361,6 +407,7 @@ const ensureNamedEntity = async (
     | 'api::province.province'
     | 'api::region.region'
     | 'api::city.city'
+    | 'api::tag.tag'
     | 'api::route-type.route-type',
   name: string,
   extraData: Record<string, unknown>,
@@ -389,6 +436,7 @@ const uploadLocalFile = async (
   strapi: Core.Strapi,
   absolutePath: string,
   mediaName: string,
+  folderName: string | null,
   dryRun?: boolean
 ) => {
   if (dryRun) {
@@ -396,10 +444,18 @@ const uploadLocalFile = async (
   }
 
   const stats = await fs.stat(absolutePath);
+  const folder = folderName
+    ? ((await strapi.db.query('plugin::upload.folder').findOne({
+        where: {
+          name: folderName,
+        },
+      })) as UploadFolderEntity | null)
+    : null;
   const existing = await strapi.db.query('plugin::upload.file').findOne({
     where: {
       name: mediaName,
       size: Math.round((stats.size / 1024) * 1000) / 1000,
+      folder: folder?.id ?? null,
     },
   });
 
@@ -408,7 +464,11 @@ const uploadLocalFile = async (
   }
 
   const uploaded = await strapi.plugin('upload').service('upload').upload({
-    data: {},
+    data: {
+      fileInfo: {
+        folder: folder?.id,
+      },
+    },
     files: {
       filepath: absolutePath,
       originalFilename: path.basename(absolutePath),
@@ -448,33 +508,95 @@ const resolveLegacyFile = async (root: string, folder: string, fileName: string 
     return null;
   }
 
-  const fullPath = path.join(root, folder, normalized);
+  const candidateNames = Array.from(
+    new Set(
+      [normalized, path.basename(normalized)]
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+
+  for (const candidateName of candidateNames) {
+    const fullPath = path.join(root, folder, candidateName);
+
+    try {
+      await fs.access(fullPath);
+      return fullPath;
+    } catch {
+      continue;
+    }
+  }
 
   try {
-    await fs.access(fullPath);
-    return fullPath;
+    const entries = await fs.readdir(path.join(root, folder));
+    const lowerCaseEntries = new Map(entries.map((entry) => [entry.toLowerCase(), entry]));
+
+    for (const candidateName of candidateNames) {
+      const matchedEntry = lowerCaseEntries.get(candidateName.toLowerCase());
+
+      if (matchedEntry) {
+        return path.join(root, folder, matchedEntry);
+      }
+    }
   } catch {
     return null;
   }
+
+  return null;
+};
+
+const normalizeLocationName = (value: unknown) => slugify(toStringValue(value) ?? '');
+
+const roundCoordinate = (value: unknown) => {
+  const numeric = toNumberValue(value);
+  return numeric === null ? null : Number(numeric.toFixed(5));
 };
 
 const dedupeStartLocations = (locations: Array<Record<string, unknown>>) => {
-  const seen = new Set<string>();
+  const merged = new Map<string, Record<string, unknown>>();
 
-  return locations.filter((location) => {
+  for (const location of locations) {
+    const address =
+      location.address && typeof location.address === 'object'
+        ? (location.address as Record<string, unknown>)
+        : {};
     const key = JSON.stringify([
-      location.name ?? '',
-      location.gpx_file ?? '',
-      location.address ?? {},
+      normalizeLocationName(location.name),
+      roundCoordinate(address.latitude),
+      roundCoordinate(address.longitude),
+      address.city ?? null,
     ]);
+    const existing = merged.get(key);
 
-    if (seen.has(key)) {
-      return false;
+    if (!existing) {
+      merged.set(key, location);
+      continue;
     }
 
-    seen.add(key);
-    return true;
-  });
+    const existingAddress =
+      existing.address && typeof existing.address === 'object'
+        ? (existing.address as Record<string, unknown>)
+        : {};
+
+    merged.set(key, {
+      ...existing,
+      ...location,
+      name: toStringValue(existing.name) ?? toStringValue(location.name) ?? undefined,
+      gpx_file: existing.gpx_file ?? location.gpx_file ?? null,
+      address: {
+        ...existingAddress,
+        ...address,
+        latitude: existingAddress.latitude ?? address.latitude ?? null,
+        longitude: existingAddress.longitude ?? address.longitude ?? null,
+        city: existingAddress.city ?? address.city ?? null,
+        province: existingAddress.province ?? address.province ?? null,
+        country: existingAddress.country ?? address.country ?? null,
+        region: existingAddress.region ?? address.region ?? null,
+      },
+    });
+  }
+
+  return [...merged.values()];
 };
 
 export const importLegacyWalks = async (
@@ -603,20 +725,29 @@ export const importLegacyWalks = async (
           options.dryRun
         )
       : null;
+    const tagNames = mapLegacyTypeTags(routeTypeName);
+    const tags = [];
+
+    for (const tagName of tagNames) {
+      const tag = await ensureNamedEntity(strapi, 'api::tag.tag', tagName, {}, options.locale, options.dryRun);
+      if (tag?.id) {
+        tags.push(tag.id);
+      }
+    }
 
     const imagePath = await resolveLegacyFile(options.legacyRoot, 'images/wandelingen', walk.Afbeelding_large);
     const pdfPath = await resolveLegacyFile(options.legacyRoot, 'pdf', walk.PDF);
     const primaryGpxPath = await resolveLegacyFile(options.legacyRoot, 'gpx', walk.GPX);
     const coverImage = imagePath
-      ? await uploadLocalFile(strapi, imagePath, path.basename(imagePath), options.dryRun)
+      ? await uploadLocalFile(strapi, imagePath, path.basename(imagePath), 'routes', options.dryRun)
       : null;
     const pdfFile = pdfPath
-      ? await uploadLocalFile(strapi, pdfPath, path.basename(pdfPath), options.dryRun)
+      ? await uploadLocalFile(strapi, pdfPath, path.basename(pdfPath), 'routes', options.dryRun)
       : null;
 
     const startLocations = [];
     const primaryStartLocationGpx = primaryGpxPath
-      ? await uploadLocalFile(strapi, primaryGpxPath, path.basename(primaryGpxPath), options.dryRun)
+      ? await uploadLocalFile(strapi, primaryGpxPath, path.basename(primaryGpxPath), 'gpx', options.dryRun)
       : null;
 
     startLocations.push({
@@ -639,7 +770,7 @@ export const importLegacyWalks = async (
     for (const gpxRow of gpxByWalkId.get(Number(walk.ID)) ?? []) {
       const gpxPath = await resolveLegacyFile(options.legacyRoot, 'gpx', gpxRow.GPX);
       const gpxFile = gpxPath
-        ? await uploadLocalFile(strapi, gpxPath, path.basename(gpxPath), options.dryRun)
+        ? await uploadLocalFile(strapi, gpxPath, path.basename(gpxPath), 'gpx', options.dryRun)
         : null;
 
       startLocations.push({
@@ -662,7 +793,7 @@ export const importLegacyWalks = async (
 
     const markingImagePath = await resolveLegacyFile(options.legacyRoot, 'images/wandelingen', walk.Bordje);
     const markingImage = markingImagePath
-      ? await uploadLocalFile(strapi, markingImagePath, path.basename(markingImagePath), options.dryRun)
+      ? await uploadLocalFile(strapi, markingImagePath, path.basename(markingImagePath), 'signs', options.dryRun)
       : null;
     const routeMarkings: Array<Record<string, unknown>> = [];
 
@@ -684,10 +815,11 @@ export const importLegacyWalks = async (
     }
 
     const description = toStringValue(walk.Korte_omschrijving);
+    const plainDescription = description ? htmlToPlainText(description) : null;
     const routeData = {
       title,
       slug,
-      description: description ? toBlocks(description) : undefined,
+      description: plainDescription ? toBlocks(plainDescription) : undefined,
       difficulty: mapDifficulty(walk.Moeilijkheid),
       wheelchair_accessible: toBooleanValue(walk.Rolstoel),
       dog_friendly: toBooleanValue(walk.Hond),
@@ -697,7 +829,8 @@ export const importLegacyWalks = async (
       provinces: province?.id ? { connect: [province.id] } : undefined,
       cities: city?.id ? { connect: [city.id] } : undefined,
       region: region?.id ?? null,
-      route_type: routeType?.id ? { connect: [routeType.id] } : undefined,
+      route_type: routeType?.id ? [routeType.id] : undefined,
+      tags: tags.length > 0 ? { connect: tags } : undefined,
       route_start_locations: dedupeStartLocations(startLocations),
       route_end_location: toStringValue(walk.Eind_plaats)
         ? [

@@ -94,6 +94,7 @@ const run = async () => {
   const options = parseArgs();
   const appContext = await compileStrapi();
   const strapi = createStrapi(appContext);
+  let importError;
 
   try {
     await strapi.load();
@@ -102,8 +103,20 @@ const run = async () => {
     const result = await importLegacyWalks(strapi, options);
 
     console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+  } catch (error) {
+    importError = error;
   } finally {
-    await strapi.destroy();
+    try {
+      await strapi.destroy();
+    } catch (error) {
+      if (!importError && error?.message !== 'aborted') {
+        throw error;
+      }
+    }
+  }
+
+  if (importError) {
+    throw importError;
   }
 };
 
