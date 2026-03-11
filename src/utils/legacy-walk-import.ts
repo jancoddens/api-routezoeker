@@ -55,6 +55,7 @@ type LegacyWalkRow = {
   Knooppunten: string | null;
   Knooppunten_afstand: string | null;
   Afbeelding_large: string | null;
+  Copywright: string | null;
   Meta_title: string | null;
   Meta_description: string | null;
   Bordje: string | null;
@@ -89,6 +90,9 @@ type UploadFileEntity = {
   id: number;
   name: string;
   url: string;
+  alternativeText?: string | null;
+  caption?: string | null;
+  copyright?: string | null;
 };
 
 type UploadFolderEntity = {
@@ -129,6 +133,7 @@ const WALK_QUERY_COLUMNS = [
   'Knooppunten',
   'Knooppunten_afstand',
   'Afbeelding_large',
+  'Copywright',
   'Meta_title',
   'Meta_description',
   'Bordje',
@@ -467,6 +472,8 @@ const uploadLocalFile = async (
   absolutePath: string,
   mediaName: string,
   folderName: string | null,
+  alternativeText?: string | null,
+  copyright?: string | null,
   dryRun?: boolean
 ) => {
   if (dryRun) {
@@ -490,6 +497,21 @@ const uploadLocalFile = async (
   });
 
   if (existing) {
+    if (
+      (alternativeText && existing.alternativeText !== alternativeText) ||
+      (copyright && existing.copyright !== copyright)
+    ) {
+      await strapi.plugin('upload').service('upload').updateFileInfo(existing.id, {
+        alternativeText,
+        folder: folder?.id,
+      });
+      if (copyright) {
+        await strapi.db.query('plugin::upload.file').update({
+          where: { id: existing.id },
+          data: { copyright },
+        });
+      }
+    }
     return existing as UploadFileEntity;
   }
 
@@ -497,6 +519,7 @@ const uploadLocalFile = async (
     data: {
       fileInfo: {
         folder: folder?.id,
+        alternativeText: alternativeText ?? undefined,
       },
     },
     files: {
@@ -507,7 +530,17 @@ const uploadLocalFile = async (
     },
   });
 
-  return Array.isArray(uploaded) ? (uploaded[0] as UploadFileEntity | undefined) ?? null : null;
+  const uploadedFile = Array.isArray(uploaded) ? ((uploaded[0] as UploadFileEntity | undefined) ?? null) : null;
+
+  if (uploadedFile?.id && copyright) {
+    await strapi.db.query('plugin::upload.file').update({
+      where: { id: uploadedFile.id },
+      data: { copyright },
+    });
+    uploadedFile.copyright = copyright;
+  }
+
+  return uploadedFile;
 };
 
 const findExistingRoute = async (strapi: Core.Strapi, slug: string, title: string, locale?: string) => {
@@ -772,15 +805,23 @@ export const importLegacyWalks = async (
     const pdfPath = await resolveLegacyFile(options.legacyRoot, 'pdf', walk.PDF);
     const primaryGpxPath = await resolveLegacyFile(options.legacyRoot, 'gpx', walk.GPX);
     const coverImage = imagePath
-      ? await uploadLocalFile(strapi, imagePath, path.basename(imagePath), 'routes', options.dryRun)
+      ? await uploadLocalFile(
+          strapi,
+          imagePath,
+          path.basename(imagePath),
+          'routes',
+          title,
+          toStringValue(walk.Copywright),
+          options.dryRun
+        )
       : null;
     const pdfFile = pdfPath
-      ? await uploadLocalFile(strapi, pdfPath, path.basename(pdfPath), 'routes', options.dryRun)
+      ? await uploadLocalFile(strapi, pdfPath, path.basename(pdfPath), 'routes', null, null, options.dryRun)
       : null;
 
     const startLocations = [];
     const primaryStartLocationGpx = primaryGpxPath
-      ? await uploadLocalFile(strapi, primaryGpxPath, path.basename(primaryGpxPath), 'gpx', options.dryRun)
+      ? await uploadLocalFile(strapi, primaryGpxPath, path.basename(primaryGpxPath), 'gpx', null, null, options.dryRun)
       : null;
 
     startLocations.push({
@@ -803,7 +844,7 @@ export const importLegacyWalks = async (
     for (const gpxRow of gpxByWalkId.get(Number(walk.ID)) ?? []) {
       const gpxPath = await resolveLegacyFile(options.legacyRoot, 'gpx', gpxRow.GPX);
       const gpxFile = gpxPath
-        ? await uploadLocalFile(strapi, gpxPath, path.basename(gpxPath), 'gpx', options.dryRun)
+        ? await uploadLocalFile(strapi, gpxPath, path.basename(gpxPath), 'gpx', null, null, options.dryRun)
         : null;
 
       startLocations.push({
@@ -826,7 +867,15 @@ export const importLegacyWalks = async (
 
     const markingImagePath = await resolveLegacyFile(options.legacyRoot, 'images/wandelingen', walk.Bordje);
     const markingImage = markingImagePath
-      ? await uploadLocalFile(strapi, markingImagePath, path.basename(markingImagePath), 'signs', options.dryRun)
+      ? await uploadLocalFile(
+          strapi,
+          markingImagePath,
+          path.basename(markingImagePath),
+          'signs',
+          null,
+          null,
+          options.dryRun
+        )
       : null;
     const routeMarkings: Array<Record<string, unknown>> = [];
 
