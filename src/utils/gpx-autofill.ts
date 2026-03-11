@@ -1,12 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import turf from '@turf/turf';
-import GPXParser, { type Point as GpxPoint, type Waypoint as GpxWaypoint } from 'gpxparser';
-
 type UploadFile = {
   url?: string | null;
-  name?: string | null;
 };
 
 type RouteAddress = {
@@ -54,6 +50,21 @@ type RouteEntity = {
   route_waypoints?: RouteWaypoint[] | null;
 };
 
+type GpxPoint = {
+  lat: number;
+  lon: number;
+  ele: number | null;
+  time: Date | null;
+};
+
+type ParsedGpxWaypoint = {
+  name: string | null;
+  desc: string | null;
+  cmt: string | null;
+  lat: number;
+  lon: number;
+};
+
 type ParsedGpx = {
   title: string | null;
   description: string | null;
@@ -61,7 +72,10 @@ type ParsedGpx = {
   durationMinutes: number | null;
   elevationGain: number | null;
   elevationLoss: number | null;
-  routeGeometry: unknown;
+  routeGeometry: {
+    type: 'LineString';
+    coordinates: Array<[number, number] | [number, number, number]>;
+  };
   elevationProfile: Array<{ distance_km: number; elevation: number | null }>;
   start: { latitude: number; longitude: number };
   end: { latitude: number; longitude: number };
@@ -69,6 +83,7 @@ type ParsedGpx = {
 };
 
 const MAX_ELEVATION_PROFILE_POINTS = 250;
+const EARTH_RADIUS_KM = 6371;
 
 const round = (value: number, decimals = 2) => {
   const factor = 10 ** decimals;
@@ -81,6 +96,21 @@ const asText = (value: unknown) => {
   }
 
   return value.trim();
+};
+
+const decodeXml = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .trim();
 };
 
 const pickFirstNonEmpty = (...values: Array<unknown>) => {
@@ -145,16 +175,119 @@ const readGpxFile = async (file: UploadFile | null | undefined) => {
   return fs.readFile(filePath, 'utf8');
 };
 
+const escapeTag = (tagName: string) => tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getTagText = (xml: string, tagName: string) => {
+  const match = xml.match(new RegExp(`<${escapeTag(tagName)}\\b[^>]*>([\\s\\S]*?)</${escapeTag(tagName)}>`, 'i'));
+  return decodeXml(match?.[1] ?? null);
+};
+
+const getAllBlocks = (xml: string, tagName: string) => {
+  const matches = xml.matchAll(
+    new RegExp(`<${escapeTag(tagName)}\\b[^>]*>([\\s\\S]*?)</${escapeTag(tagName)}>`, 'gi')
+  );
+
+  return Array.from(matches, (match) => match[1]);
+};
+
+const getAttributeValue = (tag: string, attribute: string) => {
+  const match = tag.match(new RegExp(`${attribute}=["']([^"']+)["']`, 'i'));
+  return decodeXml(match?.[1] ?? null);
+};
+
+const parseNumber = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseDate = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const parsePoints = (xml: string, pointTagName: string): GpxPoint[] => {
+  const matches = xml.matchAll(
+    new RegExp(`<${escapeTag(pointTagName)}\\b([^>]*)>([\\s\\S]*?)</${escapeTag(pointTagName)}>`, 'gi')
+  );
+
+  return Array.from(matches, ([, attrs, inner]) => {
+    const lat = parseNumber(getAttributeValue(attrs, 'lat'));
+    const lon = parseNumber(getAttributeValue(attrs, 'lon'));
+
+    if (lat === null || lon === null) {
+      return null;
+    }
+
+    return {
+      lat,
+      lon,
+      ele: parseNumber(getTagText(inner, 'ele')),
+      time: parseDate(getTagText(inner, 'time')),
+    };
+  }).filter((point): point is GpxPoint => point !== null);
+};
+
+const parseWaypoints = (xml: string): ParsedGpxWaypoint[] => {
+  const matches = xml.matchAll(/<wpt\b([^>]*)>([\s\S]*?)<\/wpt>/gi);
+
+  return Array.from(matches, ([, attrs, inner]) => {
+    const lat = parseNumber(getAttributeValue(attrs, 'lat'));
+    const lon = parseNumber(getAttributeValue(attrs, 'lon'));
+
+    if (lat === null || lon === null) {
+      return null;
+    }
+
+    return {
+      name: getTagText(inner, 'name'),
+      desc: getTagText(inner, 'desc'),
+      cmt: getTagText(inner, 'cmt'),
+      lat,
+      lon,
+    };
+  }).filter((waypoint): waypoint is ParsedGpxWaypoint => waypoint !== null);
+};
+
+const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
+const distanceBetweenPointsKm = (from: GpxPoint, to: GpxPoint) => {
+  const deltaLat = toRadians(to.lat - from.lat);
+  const deltaLon = toRadians(to.lon - from.lon);
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+
+  return 2 * EARTH_RADIUS_KM * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const cleanConsecutiveDuplicates = (points: GpxPoint[]) =>
+  points.filter((point, index) => {
+    if (index === 0) {
+      return true;
+    }
+
+    const previous = points[index - 1];
+    return (
+      previous.lat !== point.lat ||
+      previous.lon !== point.lon ||
+      previous.ele !== point.ele
+    );
+  });
+
 const calculateDurationMinutes = (points: GpxPoint[]) => {
   const timestamps = points
-    .map((point) => {
-      if (!point.time) {
-        return null;
-      }
-
-      const time = point.time instanceof Date ? point.time.getTime() : new Date(point.time).getTime();
-      return Number.isFinite(time) ? time : null;
-    })
+    .map((point) => point.time?.getTime() ?? null)
     .filter((value): value is number => value !== null);
 
   if (timestamps.length < 2) {
@@ -162,12 +295,7 @@ const calculateDurationMinutes = (points: GpxPoint[]) => {
   }
 
   const durationMs = timestamps[timestamps.length - 1] - timestamps[0];
-
-  if (durationMs <= 0) {
-    return null;
-  }
-
-  return Math.round(durationMs / 60000);
+  return durationMs > 0 ? Math.round(durationMs / 60000) : null;
 };
 
 const calculateElevationChange = (points: GpxPoint[]) => {
@@ -176,7 +304,7 @@ const calculateElevationChange = (points: GpxPoint[]) => {
   let previousElevation: number | null = null;
 
   for (const point of points) {
-    if (typeof point.ele !== 'number') {
+    if (point.ele === null) {
       continue;
     }
 
@@ -198,92 +326,79 @@ const calculateElevationChange = (points: GpxPoint[]) => {
   };
 };
 
-const normalizePoints = (gpx: GPXParser) => {
-  const trackPoints = (gpx.tracks ?? []).flatMap((track) => track.points ?? []);
-
-  if (trackPoints.length > 1) {
-    return trackPoints;
-  }
-
-  const routePoints = (gpx.routes ?? []).flatMap((route) => route.points ?? []);
-
-  return routePoints;
-};
-
 const parseGpx = (xml: string): ParsedGpx | null => {
-  const parser = new GPXParser();
-  parser.parse(xml);
-
-  const points = normalizePoints(parser).filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lon));
+  const metadataBlock = getAllBlocks(xml, 'metadata')[0] ?? '';
+  const trackBlocks = getAllBlocks(xml, 'trk');
+  const routeBlocks = getAllBlocks(xml, 'rte');
+  const trackPoints = cleanConsecutiveDuplicates(
+    trackBlocks.flatMap((trackBlock) => getAllBlocks(trackBlock, 'trkseg').flatMap((segment) => parsePoints(segment, 'trkpt')))
+  );
+  const routePoints = cleanConsecutiveDuplicates(routeBlocks.flatMap((routeBlock) => parsePoints(routeBlock, 'rtept')));
+  const points = trackPoints.length > 1 ? trackPoints : routePoints;
 
   if (points.length < 2) {
     return null;
   }
 
-  const coordinates = points.map((point) =>
-    typeof point.ele === 'number'
-      ? [point.lon as number, point.lat as number, point.ele]
-      : [point.lon as number, point.lat as number]
-  );
-
-  const rawLine = turf.lineString(coordinates);
-  const cleanedLine = turf.cleanCoords(rawLine);
-  const distanceKm = round(turf.length(cleanedLine, { units: 'kilometers' }), 2);
-  const durationMinutes = calculateDurationMinutes(points);
-  const { elevationGain, elevationLoss } = calculateElevationChange(points);
-
-  let cumulativeDistanceKm = 0;
+  let distanceKm = 0;
   const elevationProfile = clampProfilePoints(
     points.map((point, index) => {
       if (index > 0) {
-        const previous = points[index - 1];
-        cumulativeDistanceKm += turf.distance(
-          turf.point([previous.lon as number, previous.lat as number]),
-          turf.point([point.lon as number, point.lat as number]),
-          { units: 'kilometers' }
-        );
+        distanceKm += distanceBetweenPointsKm(points[index - 1], point);
       }
 
       return {
-        distance_km: round(cumulativeDistanceKm, 2),
-        elevation: typeof point.ele === 'number' ? round(point.ele, 1) : null,
+        distance_km: round(distanceKm, 2),
+        elevation: point.ele === null ? null : round(point.ele, 1),
       };
     })
   );
 
-  const firstTrack = parser.tracks?.[0];
-  const firstRoute = parser.routes?.[0];
+  const { elevationGain, elevationLoss } = calculateElevationChange(points);
+  const firstTrack = trackBlocks[0] ?? '';
+  const firstRoute = routeBlocks[0] ?? '';
+  const waypoints = parseWaypoints(xml);
 
   return {
-    title: pickFirstNonEmpty(firstTrack?.name, firstRoute?.name, parser.metadata?.name),
-    description: pickFirstNonEmpty(firstTrack?.desc, firstRoute?.desc, parser.metadata?.desc),
-    distanceKm,
-    durationMinutes,
+    title: pickFirstNonEmpty(
+      getTagText(firstTrack, 'name'),
+      getTagText(firstRoute, 'name'),
+      getTagText(metadataBlock, 'name')
+    ),
+    description: pickFirstNonEmpty(
+      getTagText(firstTrack, 'desc'),
+      getTagText(firstRoute, 'desc'),
+      getTagText(metadataBlock, 'desc')
+    ),
+    distanceKm: round(distanceKm, 2),
+    durationMinutes: calculateDurationMinutes(points),
     elevationGain,
     elevationLoss,
-    routeGeometry: cleanedLine.geometry,
+    routeGeometry: {
+      type: 'LineString',
+      coordinates: points.map((point) =>
+        point.ele === null
+          ? [round(point.lon, 6), round(point.lat, 6)]
+          : [round(point.lon, 6), round(point.lat, 6), round(point.ele, 1)]
+      ),
+    },
     elevationProfile,
     start: {
-      latitude: points[0].lat as number,
-      longitude: points[0].lon as number,
+      latitude: points[0].lat,
+      longitude: points[0].lon,
     },
     end: {
-      latitude: points[points.length - 1].lat as number,
-      longitude: points[points.length - 1].lon as number,
+      latitude: points[points.length - 1].lat,
+      longitude: points[points.length - 1].lon,
     },
-    waypoints: (parser.waypoints ?? [])
-      .filter(
-        (waypoint): waypoint is GpxWaypoint =>
-          Number.isFinite(waypoint?.lat) && Number.isFinite(waypoint?.lon)
-      )
-      .map((waypoint) => ({
-        title: pickFirstNonEmpty(waypoint.name) ?? undefined,
-        description: pickFirstNonEmpty(waypoint.desc, waypoint.cmt)
-          ? toBlocks(pickFirstNonEmpty(waypoint.desc, waypoint.cmt) as string)
-          : undefined,
-        latitude: round(waypoint.lat as number, 6),
-        longitude: round(waypoint.lon as number, 6),
-      })),
+    waypoints: waypoints.map((waypoint) => ({
+      title: waypoint.name ?? undefined,
+      description: pickFirstNonEmpty(waypoint.desc, waypoint.cmt)
+        ? toBlocks(pickFirstNonEmpty(waypoint.desc, waypoint.cmt) as string)
+        : undefined,
+      latitude: round(waypoint.lat, 6),
+      longitude: round(waypoint.lon, 6),
+    })),
   };
 };
 
@@ -322,11 +437,7 @@ export const buildRouteAutofill = async (route: RouteEntity) => {
         asText(startLocation.description) || !parsed.description
           ? startLocation.description
           : parsed.description,
-      address: buildAddress(
-        startLocation.address,
-        parsed.start.latitude,
-        parsed.start.longitude
-      ),
+      address: buildAddress(startLocation.address, parsed.start.latitude, parsed.start.longitude),
       distance_km: parsed.distanceKm,
       duration_minutes: parsed.durationMinutes,
       elevation_gain: parsed.elevationGain,
@@ -356,11 +467,7 @@ export const buildRouteAutofill = async (route: RouteEntity) => {
                   asText(endLocation.description) || !primary.description
                     ? endLocation.description
                     : primary.description,
-                address: buildAddress(
-                  endLocation.address,
-                  primary.end.latitude,
-                  primary.end.longitude
-                ),
+                address: buildAddress(endLocation.address, primary.end.latitude, primary.end.longitude),
               }
             : endLocation
         )

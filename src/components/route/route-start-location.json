@@ -18,13 +18,7 @@
     },
     "gpx_file": {
       "type": "media",
-      "multiple": false,
-      "allowedTypes": [
-        "images",
-        "files",
-        "videos",
-        "audios"
-      ]
+      "multiple": false
     },
     "distance_km": {
       "type": "decimal"
