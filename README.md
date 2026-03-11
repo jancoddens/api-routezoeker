@@ -127,7 +127,13 @@ Expected fields are matched heuristically. The importer looks for common keys su
 
 When the source is GeoJSON, polygon boundaries are stored in `boundary_geojson` and centroids are computed automatically. The importer also ensures Belgium, the three regions, and the ten provinces exist before importing cities.
 
-CLI import:
+CLI import with the built-in Belgian municipalities source:
+
+```bash
+npm run import:belgian-cities
+```
+
+CLI import with a custom file or URL:
 
 ```bash
 npm run import:belgian-cities -- ./data/belgian-municipalities.geojson

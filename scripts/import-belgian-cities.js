@@ -7,7 +7,7 @@ const { compileStrapi, createStrapi } = require('@strapi/strapi');
 const parseArgs = () => {
   const rawArgs = process.argv.slice(2);
   const options = {
-    source: null,
+    source: undefined,
     dryRun: false,
     locale: undefined,
     limit: undefined,
@@ -47,10 +47,6 @@ const parseArgs = () => {
     throw new Error(`Unexpected argument: ${arg}`);
   }
 
-  if (!options.source) {
-    throw new Error('Usage: npm run import:belgian-cities -- <source> [--dry-run] [--locale <code>] [--limit <n>]');
-  }
-
   return options;
 };
 
@@ -69,7 +65,7 @@ const run = async () => {
       limit: options.limit,
     });
 
-    console.log(JSON.stringify({ ok: true, source: options.source, ...result }, null, 2));
+    console.log(JSON.stringify({ ok: true, ...result }, null, 2));
   } finally {
     await strapi.destroy();
   }

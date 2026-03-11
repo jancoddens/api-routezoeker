@@ -29,6 +29,8 @@ type EntityReference = {
   id: number;
   name: string;
   slug: string;
+  iso_code?: string | null;
+  code?: string | null;
 };
 
 type ImportSummary = {
@@ -37,10 +39,28 @@ type ImportSummary = {
   updated: number;
   skipped: number;
   country: string;
+  source: string;
 };
 
 const COUNTRY_NAME = 'Belgie';
 const COUNTRY_SLUG = 'belgie';
+const DEFAULT_SOURCE = 'builtin-belgian-municipalities';
+const DEFAULT_DICTIONARY_URL =
+  'https://raw.githubusercontent.com/mathiasleroy/belgium-geographic-data/master/dist/metadata/be-dictionary.csv';
+const DEFAULT_POSTAL_CODE_POINTS_URL =
+  'https://raw.githubusercontent.com/mathiasleroy/belgium-geographic-data/master/dist/points/postal-codes.WGS84.js';
+
+const BELGIUM_COUNTRY_ALIASES = ['belgie', 'belgium', 'belgique', 'belgien'];
+
+type BuiltinMunicipalityRecord = {
+  nis5: string;
+  name: string;
+  postalCode: string | null;
+  provinceName: string | null;
+  regionName: string | null;
+  latitude: number | null;
+  longitude: number | null;
+};
 
 const REGION_DEFINITIONS = [
   { name: 'Vlaanderen', slug: 'vlaanderen' },
@@ -111,6 +131,12 @@ const PROVINCE_ALIAS_MAP = new Map<string, string>([
 
 const PROVINCE_REGION_MAP = new Map<string, string>(
   PROVINCE_DEFINITIONS.map((province) => [province.slug, province.regionSlug])
+);
+const REGION_DISPLAY_NAME_BY_SLUG = new Map<string, string>(
+  REGION_DEFINITIONS.map((region) => [region.slug, region.name])
+);
+const PROVINCE_DISPLAY_NAME_BY_SLUG = new Map(
+  PROVINCE_DEFINITIONS.map((province) => [province.slug, province.name])
 );
 
 const NAME_FIELDS = ['name', 'naam', 'municipality', 'gemeente', 'city', 'stad', 'nom'];
@@ -227,6 +253,51 @@ const normalizeRegionSlug = (value: string | null) => {
   return REGION_ALIAS_MAP.get(slugify(value)) ?? slugify(value);
 };
 
+const canonicalProvinceKey = (value: string | null) => normalizeProvinceSlug(value);
+
+const canonicalRegionKey = (value: string | null) => normalizeRegionSlug(value);
+
+const canonicalCountryKey = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = slugify(value);
+
+  if (BELGIUM_COUNTRY_ALIASES.includes(normalized) || normalized === 'be') {
+    return COUNTRY_SLUG;
+  }
+
+  return normalized;
+};
+
+const prefersRegion = (entry: EntityReference, regionSlug: string | null) => {
+  if (!regionSlug) {
+    return 0;
+  }
+
+  const haystack = `${entry.name} ${entry.slug} ${entry.code ?? ''}`.toLowerCase();
+  const regionName = REGION_DISPLAY_NAME_BY_SLUG.get(regionSlug)?.toLowerCase() ?? '';
+
+  if (haystack.includes(regionSlug)) {
+    return 3;
+  }
+
+  if (regionName && haystack.includes(regionName.toLowerCase())) {
+    return 2;
+  }
+
+  if (regionSlug === 'vlaanderen' && haystack.includes('vlaam')) {
+    return 2;
+  }
+
+  if (regionSlug === 'wallonie' && (haystack.includes('waal') || haystack.includes('wallon'))) {
+    return 2;
+  }
+
+  return 0;
+};
+
 const resolveCentroid = (feature: GeoJsonFeature) => {
   if (!feature.geometry) {
     return { latitude: null, longitude: null };
@@ -297,8 +368,160 @@ const fetchPayload = async (source: string) => {
   }
 
   const { readFile } = await import('node:fs/promises');
-  const raw = await readFile(source, 'utf8');
-  return JSON.parse(raw) as unknown;
+  try {
+    const raw = await readFile(source, 'utf8');
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(
+        `Import source not found: ${source}. Provide an existing file path, a URL, or omit the argument to use the built-in Belgian municipalities source.`
+      );
+    }
+
+    throw error;
+  }
+};
+
+const fetchText = async (url: string) => {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Dataset fetch failed with status ${response.status} for ${url}`);
+  }
+
+  return response.text();
+};
+
+const splitCsvLine = (line: string) => {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+
+    if (character === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+
+      continue;
+    }
+
+    if (character === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+      continue;
+    }
+
+    current += character;
+  }
+
+  result.push(current);
+  return result;
+};
+
+const parseCsv = (raw: string) => {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return [];
+  }
+
+  const headers = splitCsvLine(lines[0]);
+
+  return lines.slice(1).map((line) => {
+    const values = splitCsvLine(line);
+    const record: JsonRecord = {};
+
+    headers.forEach((header, index) => {
+      record[header] = values[index] ?? '';
+    });
+
+    return record;
+  });
+};
+
+const parsePostalCodePoints = (raw: string) => {
+  const pointRegex =
+    /"(?<postal>\d{4})"\s*:\s*\{\s*"lat"\s*:\s*(?<lat>-?\d+(?:\.\d+)?)\s*,\s*"lng"\s*:\s*(?<lng>-?\d+(?:\.\d+)?)\s*\}/g;
+  const points = new Map<string, { latitude: number; longitude: number }>();
+
+  for (const match of raw.matchAll(pointRegex)) {
+    const postal = match.groups?.postal;
+    const latitude = toNumberValue(match.groups?.lat);
+    const longitude = toNumberValue(match.groups?.lng);
+
+    if (!postal || latitude === null || longitude === null) {
+      continue;
+    }
+
+    points.set(postal, { latitude, longitude });
+  }
+
+  return points;
+};
+
+const loadBuiltinMunicipalities = async (): Promise<ImportSourceRecord[]> => {
+  const [dictionaryRaw, postalPointsRaw] = await Promise.all([
+    fetchText(DEFAULT_DICTIONARY_URL),
+    fetchText(DEFAULT_POSTAL_CODE_POINTS_URL),
+  ]);
+  const dictionaryRows = parseCsv(dictionaryRaw);
+  const postalPoints = parsePostalCodePoints(postalPointsRaw);
+  const municipalities = new Map<string, BuiltinMunicipalityRecord>();
+
+  for (const row of dictionaryRows) {
+    const nis5 = toStringValue(row.NIS5);
+    const name = toStringValue(row.Municipality);
+
+    if (!nis5 || !name) {
+      continue;
+    }
+
+    const postalCode = toStringValue(row.PostCode);
+
+    if (!municipalities.has(nis5)) {
+      const point = postalCode ? postalPoints.get(postalCode) : undefined;
+
+      municipalities.set(nis5, {
+        nis5,
+        name,
+        postalCode,
+        provinceName: toStringValue(row.Province),
+        regionName: toStringValue(row.Region),
+        latitude: point?.latitude ?? null,
+        longitude: point?.longitude ?? null,
+      });
+      continue;
+    }
+
+    const existing = municipalities.get(nis5)!;
+
+    if (!existing.postalCode && postalCode) {
+      const point = postalPoints.get(postalCode);
+      existing.postalCode = postalCode;
+      existing.latitude = point?.latitude ?? existing.latitude ?? null;
+      existing.longitude = point?.longitude ?? existing.longitude ?? null;
+    }
+  }
+
+  return Array.from(municipalities.values()).map((municipality) => ({
+    name: municipality.name,
+    slug: slugify(municipality.name),
+    postalCode: municipality.postalCode,
+    latitude: municipality.latitude,
+    longitude: municipality.longitude,
+    boundaryGeojson: null,
+    provinceName: municipality.provinceName,
+    regionName: municipality.regionName,
+  }));
 };
 
 const findOneBySlugOrName = async (
@@ -321,11 +544,117 @@ const findOneBySlugOrName = async (
   return Array.isArray(entries) ? (entries[0] as EntityReference | undefined) : undefined;
 };
 
-const ensureCountry = async (strapi: Core.Strapi, locale?: string, dryRun?: boolean) => {
-  const existing = await findOneBySlugOrName(strapi, 'api::country.country', COUNTRY_SLUG, COUNTRY_NAME, locale);
+const listEntities = async (
+  strapi: Core.Strapi,
+  uid: 'api::country.country' | 'api::region.region' | 'api::province.province',
+  locale?: string
+) => {
+  const entries = await strapi.entityService.findMany(uid, {
+    locale,
+    limit: 500,
+  });
+
+  return (Array.isArray(entries) ? entries : []) as EntityReference[];
+};
+
+const findCountryCandidate = (
+  countries: EntityReference[],
+  countryName: string | null,
+  regionSlug: string | null
+) => {
+  const exactBelgium = countries.find((country) => {
+    const keys = [
+      canonicalCountryKey(country.name),
+      canonicalCountryKey(country.slug),
+      canonicalCountryKey(country.iso_code ?? null),
+    ];
+
+    return keys.includes(COUNTRY_SLUG);
+  });
+
+  if (exactBelgium) {
+    return exactBelgium;
+  }
+
+  const requestedKey = canonicalCountryKey(countryName);
+
+  if (requestedKey) {
+    const directMatch = countries.find((country) => {
+      const keys = [
+        canonicalCountryKey(country.name),
+        canonicalCountryKey(country.slug),
+        canonicalCountryKey(country.iso_code ?? null),
+      ];
+
+      return keys.includes(requestedKey);
+    });
+
+    if (directMatch) {
+      return directMatch;
+    }
+  }
+
+  if (!regionSlug) {
+    return undefined;
+  }
+
+  return countries.find((country) => {
+    const keys = [canonicalCountryKey(country.name), canonicalCountryKey(country.slug)];
+    return keys.includes(regionSlug);
+  });
+};
+
+const findRegionCandidate = (regions: EntityReference[], regionName: string | null) => {
+  const regionKey = canonicalRegionKey(regionName);
+
+  if (!regionKey) {
+    return undefined;
+  }
+
+  return regions.find((region) => {
+    const keys = [canonicalRegionKey(region.name), canonicalRegionKey(region.slug)];
+    return keys.includes(regionKey);
+  });
+};
+
+const findProvinceCandidate = (
+  provinces: EntityReference[],
+  provinceName: string | null,
+  regionSlug: string | null
+) => {
+  const provinceKey = canonicalProvinceKey(provinceName);
+
+  if (!provinceKey) {
+    return undefined;
+  }
+
+  const candidates = provinces.filter((province) => {
+    const keys = [
+      canonicalProvinceKey(province.name),
+      canonicalProvinceKey(province.slug),
+      canonicalProvinceKey(province.code ?? null),
+    ];
+
+    return keys.includes(provinceKey);
+  });
+
+  if (candidates.length <= 1) {
+    return candidates[0];
+  }
+
+  return candidates.sort((left, right) => prefersRegion(right, regionSlug) - prefersRegion(left, regionSlug))[0];
+};
+
+const ensureCountry = async (
+  strapi: Core.Strapi,
+  countries: EntityReference[],
+  locale?: string,
+  dryRun?: boolean
+) => {
+  const existing = findCountryCandidate(countries, COUNTRY_NAME, null);
 
   if (existing || dryRun) {
-    return existing ?? { id: 0, name: COUNTRY_NAME, slug: COUNTRY_SLUG };
+    return existing ?? { id: 0, name: COUNTRY_NAME, slug: COUNTRY_SLUG, iso_code: 'BE' };
   }
 
   const created = (await strapi.entityService.create('api::country.country', {
@@ -338,25 +667,22 @@ const ensureCountry = async (strapi: Core.Strapi, locale?: string, dryRun?: bool
     locale,
   })) as EntityReference;
 
+  countries.push(created);
+
   return created;
 };
 
 const ensureRegions = async (
   strapi: Core.Strapi,
   countryId: number,
+  existingRegions: EntityReference[],
   locale?: string,
   dryRun?: boolean
 ) => {
   const regionMap = new Map<string, EntityReference>();
 
   for (const region of REGION_DEFINITIONS) {
-    const existing = await findOneBySlugOrName(
-      strapi,
-      'api::region.region',
-      region.slug,
-      region.name,
-      locale
-    );
+    const existing = findRegionCandidate(existingRegions, region.name);
 
     if (existing) {
       regionMap.set(region.slug, existing);
@@ -378,6 +704,7 @@ const ensureRegions = async (
       locale,
     })) as EntityReference;
 
+    existingRegions.push(created);
     regionMap.set(region.slug, created);
   }
 
@@ -386,21 +713,16 @@ const ensureRegions = async (
 
 const ensureProvinces = async (
   strapi: Core.Strapi,
-  countryId: number,
+  countries: EntityReference[],
   regions: Map<string, EntityReference>,
+  existingProvinces: EntityReference[],
   locale?: string,
   dryRun?: boolean
 ) => {
   const provinceMap = new Map<string, EntityReference>();
 
   for (const province of PROVINCE_DEFINITIONS) {
-    const existing = await findOneBySlugOrName(
-      strapi,
-      'api::province.province',
-      province.slug,
-      province.name,
-      locale
-    );
+    const existing = findProvinceCandidate(existingProvinces, province.name, province.regionSlug);
 
     if (existing) {
       provinceMap.set(province.slug, existing);
@@ -416,7 +738,10 @@ const ensureProvinces = async (
       data: {
         name: province.name,
         slug: province.slug,
-        country: countryId,
+        country:
+          findCountryCandidate(countries, COUNTRY_NAME, province.regionSlug)?.id ??
+          findCountryCandidate(countries, null, province.regionSlug)?.id ??
+          null,
         regions: regions.get(province.regionSlug)?.id
           ? { connect: [regions.get(province.regionSlug)!.id] }
           : undefined,
@@ -425,6 +750,7 @@ const ensureProvinces = async (
       locale,
     })) as EntityReference;
 
+    existingProvinces.push(created);
     provinceMap.set(province.slug, created);
   }
 
@@ -433,23 +759,37 @@ const ensureProvinces = async (
 
 export const importBelgianCities = async (
   strapi: Core.Strapi,
-  source: string,
+  source?: string,
   options: ImportOptions = {}
 ): Promise<ImportSummary> => {
-  const payload = await fetchPayload(source);
-  const sourceItems = parseSourcePayload(payload);
-  const normalizedItems = sourceItems
-    .map((item) => normalizeSourceItem(item))
-    .filter((item): item is ImportSourceRecord => item !== null);
+  const resolvedSource = source ?? DEFAULT_SOURCE;
+  const normalizedItems =
+    resolvedSource === DEFAULT_SOURCE
+      ? await loadBuiltinMunicipalities()
+      : parseSourcePayload(await fetchPayload(resolvedSource))
+          .map((item) => normalizeSourceItem(item))
+          .filter((item): item is ImportSourceRecord => item !== null);
   const limitedItems =
     options.limit && options.limit > 0 ? normalizedItems.slice(0, options.limit) : normalizedItems;
 
-  const country = await ensureCountry(strapi, options.locale, options.dryRun);
-  const regions = await ensureRegions(strapi, country.id, options.locale, options.dryRun);
-  const provinces = await ensureProvinces(
+  const [countries, existingRegions, existingProvinces] = await Promise.all([
+    listEntities(strapi, 'api::country.country', options.locale),
+    listEntities(strapi, 'api::region.region', options.locale),
+    listEntities(strapi, 'api::province.province', options.locale),
+  ]);
+  const country = await ensureCountry(strapi, countries, options.locale, options.dryRun);
+  const regions = await ensureRegions(
     strapi,
     country.id,
+    existingRegions,
+    options.locale,
+    options.dryRun
+  );
+  const provinces = await ensureProvinces(
+    strapi,
+    countries,
     regions,
+    existingProvinces,
     options.locale,
     options.dryRun
   );
@@ -463,6 +803,10 @@ export const importBelgianCities = async (
     const provinceSlug = normalizeProvinceSlug(item.provinceName);
     const region = regionSlug ? regions.get(regionSlug) : undefined;
     const province = provinceSlug ? provinces.get(provinceSlug) : undefined;
+    const itemCountry =
+      findCountryCandidate(countries, COUNTRY_NAME, regionSlug) ??
+      findCountryCandidate(countries, item.regionName, regionSlug) ??
+      country;
     const existing = await findOneBySlugOrName(
       strapi,
       'api::city.city',
@@ -488,7 +832,7 @@ export const importBelgianCities = async (
       latitude: item.latitude,
       longitude: item.longitude,
       boundary_geojson: item.boundaryGeojson,
-      country: country.id,
+      country: itemCountry?.id ?? null,
       region: region?.id ?? null,
       province: province?.id ?? null,
       publishedAt: publishedAt(),
@@ -515,5 +859,6 @@ export const importBelgianCities = async (
     updated,
     skipped,
     country: country.name,
+    source: resolvedSource,
   };
 };
