@@ -94,6 +94,12 @@
       "relation": "oneToMany",
       "target": "api::location-theme-page.location-theme-page",
       "mappedBy": "region"
+    },
+    "node_networks": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::node-network.node-network",
+      "mappedBy": "region"
     }
   }
 }

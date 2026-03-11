@@ -719,6 +719,7 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    nodes: Schema.Attribute.Relation<'oneToMany', 'api::node.node'>;
     postal_code: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -810,6 +811,11 @@ export interface ApiCountryCountry extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    node_networks: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::node-network.node-network'
+    >;
+    nodes: Schema.Attribute.Relation<'oneToMany', 'api::node.node'>;
     provinces: Schema.Attribute.Relation<'oneToMany', 'api::province.province'>;
     publishedAt: Schema.Attribute.DateTime;
     regions: Schema.Attribute.Relation<'oneToMany', 'api::region.region'>;
@@ -912,6 +918,173 @@ export interface ApiLocationThemePageLocationThemePage
   };
 }
 
+export interface ApiNodeConnectionNodeConnection
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'node_connections';
+  info: {
+    displayName: 'node_connection';
+    pluralName: 'node-connections';
+    singularName: 'node-connection';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    distance_km: Schema.Attribute.Decimal;
+    external_id: Schema.Attribute.String;
+    from_node: Schema.Attribute.Relation<'manyToMany', 'api::node.node'>;
+    geometry: Schema.Attribute.JSON;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::node-connection.node-connection'
+    > &
+      Schema.Attribute.Private;
+    node_network: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::node-network.node-network'
+    >;
+    publishedAt: Schema.Attribute.DateTime;
+    to_node: Schema.Attribute.Relation<'manyToMany', 'api::node.node'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiNodeNetworkNodeNetwork extends Struct.CollectionTypeSchema {
+  collectionName: 'node_networks';
+  info: {
+    displayName: 'node_network';
+    pluralName: 'node-networks';
+    singularName: 'node-network';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    country: Schema.Attribute.Relation<'manyToOne', 'api::country.country'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    last_import_message: Schema.Attribute.Text;
+    last_import_status: Schema.Attribute.Enumeration<
+      ['idle', 'success', 'error']
+    > &
+      Schema.Attribute.DefaultTo<'idle'>;
+    last_imported_at: Schema.Attribute.DateTime;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::node-network.node-network'
+    >;
+    name: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    nodes: Schema.Attribute.Relation<'oneToMany', 'api::node.node'>;
+    province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;
+    publishedAt: Schema.Attribute.DateTime;
+    region: Schema.Attribute.Relation<'manyToOne', 'api::region.region'>;
+    slug: Schema.Attribute.UID &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    source_config: Schema.Attribute.JSON;
+    sync_enabled: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    theme: Schema.Attribute.Relation<'manyToOne', 'api::theme.theme'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiNodeNode extends Struct.CollectionTypeSchema {
+  collectionName: 'nodes';
+  info: {
+    displayName: 'node';
+    pluralName: 'nodes';
+    singularName: 'node';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    city: Schema.Attribute.Relation<'manyToOne', 'api::city.city'>;
+    country: Schema.Attribute.Relation<'manyToOne', 'api::country.country'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    external_id: Schema.Attribute.String;
+    latitude: Schema.Attribute.Decimal &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::node.node'>;
+    longitude: Schema.Attribute.Decimal &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    name: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    node_connections_from: Schema.Attribute.Relation<
+      'manyToMany',
+      'api::node-connection.node-connection'
+    >;
+    node_connections_to: Schema.Attribute.Relation<
+      'manyToMany',
+      'api::node-connection.node-connection'
+    >;
+    node_network: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::node-network.node-network'
+    >;
+    number: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiProvinceProvince extends Struct.CollectionTypeSchema {
   collectionName: 'provinces';
   info: {
@@ -981,6 +1154,11 @@ export interface ApiProvinceProvince extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    node_networks: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::node-network.node-network'
+    >;
+    nodes: Schema.Attribute.Relation<'oneToMany', 'api::node.node'>;
     publishedAt: Schema.Attribute.DateTime;
     regions: Schema.Attribute.Relation<'manyToMany', 'api::region.region'>;
     routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
@@ -1056,6 +1234,10 @@ export interface ApiRegionRegion extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    node_networks: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::node-network.node-network'
+    >;
     provinces: Schema.Attribute.Relation<
       'manyToMany',
       'api::province.province'
@@ -1227,6 +1409,12 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    route_nodes: Schema.Attribute.Component<'route.route-nodes', true> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     route_parking_locations: Schema.Attribute.Component<
       'route.route-parking-location',
       true
@@ -1358,6 +1546,10 @@ export interface ApiThemeTheme extends Struct.CollectionTypeSchema {
     location_theme_pages: Schema.Attribute.Relation<
       'oneToMany',
       'api::location-theme-page.location-theme-page'
+    >;
+    node_networks: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::node-network.node-network'
     >;
     publishedAt: Schema.Attribute.DateTime;
     route_types: Schema.Attribute.Relation<
@@ -1900,6 +2092,9 @@ declare module '@strapi/strapi' {
       'api::city.city': ApiCityCity;
       'api::country.country': ApiCountryCountry;
       'api::location-theme-page.location-theme-page': ApiLocationThemePageLocationThemePage;
+      'api::node-connection.node-connection': ApiNodeConnectionNodeConnection;
+      'api::node-network.node-network': ApiNodeNetworkNodeNetwork;
+      'api::node.node': ApiNodeNode;
       'api::province.province': ApiProvinceProvince;
       'api::region.region': ApiRegionRegion;
       'api::route-type.route-type': ApiRouteTypeRouteType;

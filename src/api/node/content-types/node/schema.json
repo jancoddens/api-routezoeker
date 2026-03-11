@@ -1,0 +1,90 @@
+{
+  "kind": "collectionType",
+  "collectionName": "nodes",
+  "info": {
+    "singularName": "node",
+    "pluralName": "nodes",
+    "displayName": "node"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
+  "attributes": {
+    "number": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "name": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "external_id": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "decimal",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "longitude": {
+      "type": "decimal",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "node_network": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::node-network.node-network",
+      "inversedBy": "nodes"
+    },
+    "country": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::country.country",
+      "inversedBy": "nodes"
+    },
+    "province": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::province.province",
+      "inversedBy": "nodes"
+    },
+    "city": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::city.city",
+      "inversedBy": "nodes"
+    },
+    "node_connections_from": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::node-connection.node-connection",
+      "mappedBy": "from_node"
+    },
+    "node_connections_to": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::node-connection.node-connection",
+      "mappedBy": "to_node"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "kind": "collectionType",
+  "collectionName": "node_connections",
+  "info": {
+    "singularName": "node-connection",
+    "pluralName": "node-connections",
+    "displayName": "node_connection"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "external_id": {
+      "type": "string"
+    },
+    "node_network": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::node-network.node-network"
+    },
+    "from_node": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::node.node",
+      "inversedBy": "node_connections_from"
+    },
+    "to_node": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::node.node",
+      "inversedBy": "node_connections_to"
+    },
+    "distance_km": {
+      "type": "decimal"
+    },
+    "geometry": {
+      "type": "json"
+    }
+  }
+}

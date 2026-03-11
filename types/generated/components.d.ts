@@ -245,6 +245,17 @@ export interface RouteRouteMarkings extends Struct.ComponentSchema {
   };
 }
 
+export interface RouteRouteNodes extends Struct.ComponentSchema {
+  collectionName: 'components_route_route_nodes';
+  info: {
+    displayName: 'route_nodes';
+  };
+  attributes: {
+    node: Schema.Attribute.Relation<'oneToOne', 'api::node.node'>;
+    order: Schema.Attribute.Integer;
+  };
+}
+
 export interface RouteRouteParkingLocation extends Struct.ComponentSchema {
   collectionName: 'components_route_route_parking_locations';
   info: {
@@ -270,7 +281,7 @@ export interface RouteRouteStartLocation extends Struct.ComponentSchema {
     elevation_gain: Schema.Attribute.Integer;
     elevation_loss: Schema.Attribute.Integer;
     elevation_profile: Schema.Attribute.JSON;
-    gpx_file: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+    gpx_file: Schema.Attribute.Media;
     name: Schema.Attribute.String;
     route_geometry: Schema.Attribute.JSON;
   };
@@ -346,6 +357,7 @@ declare module '@strapi/strapi' {
       'page-blocks.text-section': PageBlocksTextSection;
       'route.route-end-location': RouteRouteEndLocation;
       'route.route-markings': RouteRouteMarkings;
+      'route.route-nodes': RouteRouteNodes;
       'route.route-parking-location': RouteRouteParkingLocation;
       'route.route-start-location': RouteRouteStartLocation;
       'route.route-waypoints': RouteRouteWaypoints;

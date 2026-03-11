@@ -59,3 +59,30 @@ Feel free to check out the [Strapi GitHub repository](https://github.com/strapi/
 ---
 
 <sub>🤫 Psst! [Strapi is hiring](https://strapi.io/careers).</sub>
+
+## Official node-network import
+
+This project can sync official node-network datasets into Strapi `node` and `node-connection` entries.
+
+1. Add a `node-network` entry in Strapi.
+2. Fill `source_config` with a GeoJSON pair config such as:
+
+```json
+{
+  "provider": "geojson-pair",
+  "nodesUrl": "https://example.com/nodes.geojson",
+  "connectionsUrl": "https://example.com/connections.geojson",
+  "nodeIdField": "knoop_id",
+  "nodeNumberField": "knoopnr",
+  "connectionFromField": "startnr",
+  "connectionToField": "eindnr",
+  "distanceField": "afstand",
+  "distanceUnit": "km"
+}
+```
+
+3. Set `sync_enabled` to `true`.
+4. Optional: set `NODE_NETWORK_IMPORT_ON_BOOT=true` to import on startup.
+5. Optional: override the daily schedule with `NODE_NETWORK_IMPORT_CRON` and `NODE_NETWORK_IMPORT_TZ`.
+
+The importer updates existing nodes by `external_id`, creates missing nodes, updates connections, and removes stale connections for the synced network.

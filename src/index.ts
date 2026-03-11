@@ -30,6 +30,27 @@ export default {
         await syncRouteFromGpx(event.result?.id, strapi, autofillUpdatesInFlight);
       },
     });
+
+    strapi.cron.add({
+      syncOfficialNodeNetworks: {
+        task: async ({ strapi: cronStrapi }) => {
+          await cronStrapi.service('api::node-network.node-network').syncConfiguredOfficialDatasets();
+        },
+        options: {
+          rule: process.env.NODE_NETWORK_IMPORT_CRON ?? '0 0 3 * * *',
+          tz: process.env.NODE_NETWORK_IMPORT_TZ ?? 'Europe/Brussels',
+        },
+      },
+    });
+
+    if (process.env.NODE_NETWORK_IMPORT_ON_BOOT === 'true') {
+      void strapi
+        .service('api::node-network.node-network')
+        .syncConfiguredOfficialDatasets()
+        .catch((error: unknown) => {
+          strapi.log.error('Bootstrap official node-network import failed', error);
+        });
+    }
   },
 };
 

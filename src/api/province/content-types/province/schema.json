@@ -109,6 +109,18 @@
       "relation": "manyToMany",
       "target": "api::route.route",
       "inversedBy": "provinces"
+    },
+    "node_networks": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::node-network.node-network",
+      "mappedBy": "province"
+    },
+    "nodes": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::node.node",
+      "mappedBy": "province"
     }
   }
 }

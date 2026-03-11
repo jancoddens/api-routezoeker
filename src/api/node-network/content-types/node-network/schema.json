@@ -1,0 +1,102 @@
+{
+  "kind": "collectionType",
+  "collectionName": "node_networks",
+  "info": {
+    "singularName": "node-network",
+    "pluralName": "node-networks",
+    "displayName": "node_network"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "slug": {
+      "type": "uid",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "theme": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::theme.theme",
+      "inversedBy": "node_networks"
+    },
+    "country": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::country.country",
+      "inversedBy": "node_networks"
+    },
+    "province": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::province.province",
+      "inversedBy": "node_networks"
+    },
+    "region": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::region.region",
+      "inversedBy": "node_networks"
+    },
+    "image": {
+      "type": "media",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "source_config": {
+      "type": "json"
+    },
+    "sync_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "last_imported_at": {
+      "type": "datetime"
+    },
+    "last_import_status": {
+      "type": "enumeration",
+      "enum": [
+        "idle",
+        "success",
+        "error"
+      ],
+      "default": "idle"
+    },
+    "last_import_message": {
+      "type": "text"
+    },
+    "nodes": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::node.node",
+      "mappedBy": "node_network"
+    }
+  }
+}

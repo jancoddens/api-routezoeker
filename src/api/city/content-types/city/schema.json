@@ -118,6 +118,12 @@
       "relation": "manyToMany",
       "target": "api::route.route",
       "inversedBy": "cities"
+    },
+    "nodes": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::node.node",
+      "mappedBy": "city"
     }
   }
 }

@@ -1,0 +1,18 @@
+{
+  "collectionName": "components_route_route_nodes",
+  "info": {
+    "displayName": "route_nodes"
+  },
+  "options": {},
+  "attributes": {
+    "node": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::node.node"
+    },
+    "order": {
+      "type": "integer"
+    }
+  },
+  "config": {}
+}

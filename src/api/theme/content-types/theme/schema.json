@@ -48,6 +48,12 @@
       "relation": "oneToMany",
       "target": "api::route-type.route-type",
       "mappedBy": "theme"
+    },
+    "node_networks": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::node-network.node-network",
+      "mappedBy": "theme"
     }
   }
 }
