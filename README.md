@@ -93,3 +93,9 @@ curl -X POST \
   -H "Authorization: Bearer $NODE_NETWORK_SYNC_TOKEN" \
   http://localhost:1337/api/node-networks/1/sync
 ```
+
+CLI sync:
+
+```bash
+npm run import:node-network -- 1
+```
