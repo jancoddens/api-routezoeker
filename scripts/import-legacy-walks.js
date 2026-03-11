@@ -14,6 +14,7 @@ const parseArgs = () => {
     legacyRoot: DEFAULT_LEGACY_ROOT,
     locale: undefined,
     limit: undefined,
+    offset: undefined,
     dryRun: false,
     hostOverride: undefined,
     portOverride: undefined,
@@ -38,6 +39,12 @@ const parseArgs = () => {
 
     if (arg === '--limit') {
       options.limit = Number(rawArgs[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--offset') {
+      options.offset = Number(rawArgs[index + 1]);
       index += 1;
       continue;
     }

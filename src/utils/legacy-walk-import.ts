@@ -21,6 +21,7 @@ type ImportOptions = {
   legacyRoot: string;
   locale?: string;
   limit?: number;
+  offset?: number;
   dryRun?: boolean;
   hostOverride?: string;
   portOverride?: number;
@@ -333,7 +334,14 @@ const parsePhpConfig = async (configPath: string): Promise<LegacyDbConfig> => {
 
 const escapeSqlString = (value: string) => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
-const buildJsonSelect = (table: string, columns: string[], whereClause: string, limit?: number) => {
+const buildJsonSelect = (
+  table: string,
+  columns: string[],
+  whereClause: string,
+  limit?: number,
+  offset?: number,
+  orderBy?: string
+) => {
   const jsonPairs = columns
     .map((column) => `'${column}', ${column}`)
     .join(', ');
@@ -342,7 +350,9 @@ const buildJsonSelect = (table: string, columns: string[], whereClause: string, 
     `SELECT JSON_OBJECT(${jsonPairs})`,
     `FROM ${table}`,
     whereClause ? `WHERE ${whereClause}` : '',
+    orderBy ? `ORDER BY ${orderBy}` : '',
     limit && limit > 0 ? `LIMIT ${limit}` : '',
+    offset && offset > 0 ? `OFFSET ${offset}` : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -722,7 +732,9 @@ export const importLegacyWalks = async (
       'Wandelingen',
       WALK_QUERY_COLUMNS,
       "Status = 1 AND URL != ''",
-      options.limit
+      options.limit,
+      options.offset,
+      'ID ASC'
     )
   )) as LegacyWalkRow[];
   const gpxRows = (await runMysqlQuery(

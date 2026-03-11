@@ -190,3 +190,11 @@ Optional overrides:
 ```bash
 npm run import:legacy-walks -- --config /path/to/config.php --legacy-root /path/to/legacy/site --host 127.0.0.1
 ```
+
+Batch import with offsets:
+
+```bash
+npm run import:legacy-walks -- --limit 10 --offset 0
+npm run import:legacy-walks -- --limit 10 --offset 10
+npm run import:legacy-walks -- --limit 10 --offset 20
+```
