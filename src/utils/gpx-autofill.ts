@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import type { Core } from '@strapi/strapi';
 
 type UploadFile = {
   url?: string | null;
@@ -8,6 +9,8 @@ type UploadFile = {
 type RouteAddress = {
   latitude?: number | string | null;
   longitude?: number | string | null;
+  province?: { id?: number | string | null } | null;
+  country?: { id?: number | string | null } | null;
   [key: string]: unknown;
 };
 
@@ -48,6 +51,7 @@ type RouteEntity = {
   route_start_locations?: RouteStartLocation[] | null;
   route_end_location?: RouteEndLocation[] | null;
   route_waypoints?: RouteWaypoint[] | null;
+  route_nodes?: Array<{ node?: { id?: number | null } | null; order?: number | null }> | null;
 };
 
 type GpxPoint = {
@@ -84,6 +88,7 @@ type ParsedGpx = {
 
 const MAX_ELEVATION_PROFILE_POINTS = 250;
 const EARTH_RADIUS_KM = 6371;
+const NODE_MATCH_DISTANCE_METERS = 35;
 
 const round = (value: number, decimals = 2) => {
   const factor = 10 ** decimals;
@@ -258,6 +263,140 @@ const parseWaypoints = (xml: string): ParsedGpxWaypoint[] => {
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
+const distanceBetweenCoordinatePairsMeters = (
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number }
+) =>
+  distanceBetweenPointsKm(
+    { lat: a.latitude, lon: a.longitude, ele: null, time: null },
+    { lat: b.latitude, lon: b.longitude, ele: null, time: null }
+  ) * 1000;
+
+type CandidateNode = {
+  id: number;
+  latitude: number;
+  longitude: number;
+};
+
+const parseRelationId = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
+const extractRouteAreaFilter = (route: RouteEntity) => {
+  const startAddress = Array.isArray(route.route_start_locations) ? route.route_start_locations[0]?.address : null;
+
+  return {
+    provinceId: parseRelationId(startAddress?.province?.id),
+    countryId: parseRelationId(startAddress?.country?.id),
+  };
+};
+
+const findMatchedRouteNodes = async (
+  strapi: Core.Strapi,
+  route: RouteEntity,
+  parsed: ParsedGpx
+) => {
+  const { provinceId, countryId } = extractRouteAreaFilter(route);
+
+  if (!provinceId && !countryId) {
+    return [];
+  }
+
+  const candidates = (await strapi.entityService.findMany('api::node.node', {
+    filters: {
+      ...(provinceId
+        ? {
+            province: {
+              id: provinceId,
+            },
+          }
+        : {}),
+      ...(countryId
+        ? {
+            country: {
+              id: countryId,
+            },
+          }
+        : {}),
+    },
+    fields: ['id', 'latitude', 'longitude'],
+    publicationState: 'preview',
+    limit: 50000,
+  })) as Array<{ id: number; latitude?: number | string | null; longitude?: number | string | null }>;
+
+  const normalizedCandidates = candidates
+    .map((candidate) => {
+      const latitude = typeof candidate.latitude === 'number' ? candidate.latitude : Number(candidate.latitude);
+      const longitude = typeof candidate.longitude === 'number' ? candidate.longitude : Number(candidate.longitude);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return null;
+      }
+
+      return {
+        id: candidate.id,
+        latitude,
+        longitude,
+      };
+    })
+    .filter((candidate): candidate is CandidateNode => candidate !== null);
+
+  const matchedNodes: Array<{ node: number; order: number }> = [];
+  const lastSeenTrackIndexByNodeId = new Map<number, number>();
+
+  for (let trackIndex = 0; trackIndex < parsed.routeGeometry.coordinates.length; trackIndex += 1) {
+    const coordinate = parsed.routeGeometry.coordinates[trackIndex];
+    const trackPoint = {
+      longitude: coordinate[0],
+      latitude: coordinate[1],
+    };
+
+    let nearestNode: CandidateNode | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const candidate of normalizedCandidates) {
+      const distance = distanceBetweenCoordinatePairsMeters(trackPoint, candidate);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestNode = candidate;
+      }
+    }
+
+    if (!nearestNode || nearestDistance > NODE_MATCH_DISTANCE_METERS) {
+      continue;
+    }
+
+    const previousMatch = matchedNodes[matchedNodes.length - 1];
+    const lastSeenTrackIndex = lastSeenTrackIndexByNodeId.get(nearestNode.id);
+
+    if (previousMatch?.node === nearestNode.id) {
+      continue;
+    }
+
+    if (lastSeenTrackIndex !== undefined && trackIndex - lastSeenTrackIndex < 10) {
+      continue;
+    }
+
+    matchedNodes.push({
+      node: nearestNode.id,
+      order: matchedNodes.length + 1,
+    });
+    lastSeenTrackIndexByNodeId.set(nearestNode.id, trackIndex);
+  }
+
+  return matchedNodes;
+};
+
 const distanceBetweenPointsKm = (from: GpxPoint, to: GpxPoint) => {
   const deltaLat = toRadians(to.lat - from.lat);
   const deltaLon = toRadians(to.lon - from.lon);
@@ -402,7 +541,7 @@ const parseGpx = (xml: string): ParsedGpx | null => {
   };
 };
 
-export const buildRouteAutofill = async (route: RouteEntity) => {
+export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi) => {
   const startLocations = Array.isArray(route.route_start_locations)
     ? route.route_start_locations
     : [];
@@ -482,6 +621,9 @@ export const buildRouteAutofill = async (route: RouteEntity) => {
   const shouldImportWaypoints =
     (!Array.isArray(route.route_waypoints) || route.route_waypoints.length === 0) &&
     primary.waypoints.length > 0;
+  const shouldImportRouteNodes =
+    !Array.isArray(route.route_nodes) || route.route_nodes.length === 0;
+  const matchedRouteNodes = shouldImportRouteNodes ? await findMatchedRouteNodes(strapi, route, primary) : [];
 
   return {
     title: asText(route.title) || primary.title || route.title,
@@ -491,5 +633,6 @@ export const buildRouteAutofill = async (route: RouteEntity) => {
     route_start_locations: nextStartLocations,
     route_end_location: mergedEndLocations,
     ...(shouldImportWaypoints ? { route_waypoints: primary.waypoints } : {}),
+    ...(matchedRouteNodes.length > 0 ? { route_nodes: matchedRouteNodes } : {}),
   };
 };

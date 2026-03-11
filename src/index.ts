@@ -73,7 +73,7 @@ const syncRouteFromGpx = async (
     },
   });
 
-  const autofillData = await buildRouteAutofill(route as never);
+  const autofillData = await buildRouteAutofill(route as never, strapi);
 
   if (!autofillData) {
     return;
