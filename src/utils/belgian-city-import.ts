@@ -159,12 +159,64 @@ const slugify = (value: string) =>
 
 const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, ' ');
 
+const TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/^Li�ge$/i, 'Liège'],
+  [/^Liége$/i, 'Liège'],
+  [/^Bl�gny$/i, 'Blégny'],
+];
+
+const repairMojibake = (value: string) => {
+  for (const [pattern, replacement] of TEXT_REPLACEMENTS) {
+    if (pattern.test(value)) {
+      return replacement;
+    }
+  }
+
+  if (!/[ÃÂÄÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïñòóôõöøùúûüýÿ�]/.test(value)) {
+    return value;
+  }
+
+  try {
+    const repaired = Buffer.from(value, 'latin1').toString('utf8');
+
+    for (const [pattern, replacement] of TEXT_REPLACEMENTS) {
+      if (pattern.test(repaired)) {
+        return replacement;
+      }
+    }
+
+    if (repaired.includes('\uFFFD')) {
+      const fallback = value.replace(/�/g, 'é');
+
+      for (const [pattern, replacement] of TEXT_REPLACEMENTS) {
+        if (pattern.test(fallback)) {
+          return replacement;
+        }
+      }
+
+      return fallback;
+    }
+
+    return repaired;
+  } catch {
+    const fallback = value.replace(/�/g, 'é');
+
+    for (const [pattern, replacement] of TEXT_REPLACEMENTS) {
+      if (pattern.test(fallback)) {
+        return replacement;
+      }
+    }
+
+    return fallback;
+  }
+};
+
 const toStringValue = (value: unknown) => {
   if (value === undefined || value === null) {
     return null;
   }
 
-  const normalized = normalizeWhitespace(String(value));
+  const normalized = normalizeWhitespace(repairMojibake(String(value)));
   return normalized.length > 0 ? normalized : null;
 };
 

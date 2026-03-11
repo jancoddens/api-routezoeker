@@ -662,7 +662,7 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
     singularName: 'city';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   pluginOptions: {
     i18n: {
