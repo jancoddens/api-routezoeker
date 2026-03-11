@@ -27,10 +27,36 @@ export default {
         await syncRouteFromGpx(event.result?.id, strapi, autofillUpdatesInFlight);
       },
       async afterUpdate(event) {
+        const updateData = event.params?.data;
+
+        if (!shouldRunGpxAutofill(updateData)) {
+          return;
+        }
+
         await syncRouteFromGpx(event.result?.id, strapi, autofillUpdatesInFlight);
       },
     });
   },
+};
+
+const shouldRunGpxAutofill = (updateData: unknown) => {
+  if (!updateData || typeof updateData !== 'object') {
+    return false;
+  }
+
+  const keys = Object.keys(updateData as Record<string, unknown>);
+
+  return keys.some((key) =>
+    [
+      'route_start_locations',
+      'route_end_location',
+      'route_waypoints',
+      'route_nodes',
+      'route_geometry',
+      'title',
+      'excerpt',
+    ].includes(key)
+  );
 };
 
 const syncRouteFromGpx = async (
@@ -79,6 +105,10 @@ const syncRouteFromGpx = async (
     return;
   }
 
+  if (!hasAutofillChanges(route as Record<string, unknown>, autofillData as Record<string, unknown>)) {
+    return;
+  }
+
   autofillUpdatesInFlight.add(routeId);
 
   try {
@@ -90,4 +120,40 @@ const syncRouteFromGpx = async (
   } finally {
     autofillUpdatesInFlight.delete(routeId);
   }
+};
+
+const normalizeForComparison = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeForComparison(item));
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !['id', '__component'].includes(key))
+      .map(([key, nestedValue]) => [key, normalizeForComparison(nestedValue)] as const)
+      .sort(([left], [right]) => left.localeCompare(right));
+
+    return Object.fromEntries(entries);
+  }
+
+  return value;
+};
+
+const hasAutofillChanges = (
+  route: Record<string, unknown>,
+  autofillData: Record<string, unknown>
+) => {
+  const currentSubset = {
+    title: route.title,
+    excerpt: route.excerpt,
+    route_geometry: route.route_geometry,
+    route_start_locations: route.route_start_locations,
+    route_end_location: route.route_end_location,
+    route_nodes: route.route_nodes,
+  };
+
+  return (
+    JSON.stringify(normalizeForComparison(currentSubset)) !==
+    JSON.stringify(normalizeForComparison(autofillData))
+  );
 };
