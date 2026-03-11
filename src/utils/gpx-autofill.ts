@@ -88,7 +88,7 @@ type ParsedGpx = {
 
 const MAX_ELEVATION_PROFILE_POINTS = 250;
 const EARTH_RADIUS_KM = 6371;
-const NODE_MATCH_DISTANCE_METERS = 35;
+const NODE_MATCH_DISTANCE_METERS = 50;
 
 const round = (value: number, decimals = 2) => {
   const factor = 10 ** decimals;
@@ -618,9 +618,6 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
           },
         ];
 
-  const shouldImportWaypoints =
-    (!Array.isArray(route.route_waypoints) || route.route_waypoints.length === 0) &&
-    primary.waypoints.length > 0;
   const shouldImportRouteNodes =
     !Array.isArray(route.route_nodes) || route.route_nodes.length === 0;
   const matchedRouteNodes = shouldImportRouteNodes ? await findMatchedRouteNodes(strapi, route, primary) : [];
@@ -632,7 +629,6 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
     route_geometry: primary.routeGeometry,
     route_start_locations: nextStartLocations,
     route_end_location: mergedEndLocations,
-    ...(shouldImportWaypoints ? { route_waypoints: primary.waypoints } : {}),
     ...(matchedRouteNodes.length > 0 ? { route_nodes: matchedRouteNodes } : {}),
   };
 };
