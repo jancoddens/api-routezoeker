@@ -90,9 +90,11 @@ type UploadFileEntity = {
   id: number;
   name: string;
   url: string;
+  size?: number | string | null;
   alternativeText?: string | null;
   caption?: string | null;
   copyright?: string | null;
+  folder?: { id?: number | null } | number | null;
 };
 
 type UploadFolderEntity = {
@@ -398,6 +400,7 @@ const findOneBySlugOrName = async (
     filters: {
       $or: [{ slug: { $eq: slug } }, { name: { $eq: name } }],
     },
+    populate: ['country', 'province', 'region'] as never,
     locale,
     limit: 1,
   });
@@ -481,6 +484,7 @@ const uploadLocalFile = async (
   }
 
   const stats = await fs.stat(absolutePath);
+  const normalizedSize = Math.round((stats.size / 1024) * 1000) / 1000;
   const folder = folderName
     ? ((await strapi.db.query('plugin::upload.folder').findOne({
         where: {
@@ -488,13 +492,23 @@ const uploadLocalFile = async (
         },
       })) as UploadFolderEntity | null)
     : null;
-  const existing = await strapi.db.query('plugin::upload.file').findOne({
+  const existingCandidates = (await strapi.db.query('plugin::upload.file').findMany({
     where: {
       name: mediaName,
-      size: Math.round((stats.size / 1024) * 1000) / 1000,
-      folder: folder?.id ?? null,
     },
-  });
+    populate: {
+      folder: true,
+    },
+  })) as UploadFileEntity[];
+  const existing =
+    existingCandidates.find((candidate) => {
+      const candidateFolderId =
+        typeof candidate.folder === 'object' ? candidate.folder?.id ?? null : candidate.folder ?? null;
+      const candidateSize =
+        typeof candidate.size === 'number' ? candidate.size : candidate.size ? Number(candidate.size) : null;
+
+      return candidateFolderId === (folder?.id ?? null) && candidateSize === normalizedSize;
+    }) ?? null;
 
   if (existing) {
     if (
@@ -662,6 +676,33 @@ const dedupeStartLocations = (locations: Array<Record<string, unknown>>) => {
   return [...merged.values()];
 };
 
+const buildStartAddress = (
+  city: EntityReference | null,
+  province: EntityReference | null,
+  region: EntityReference | null,
+  country: EntityReference | null,
+  latitude: unknown,
+  longitude: unknown
+) => {
+  const resolvedProvinceId = city?.province?.id ?? province?.id ?? null;
+  const resolvedRegionId = city?.region?.id ?? region?.id ?? null;
+  const resolvedCountryId =
+    city?.country?.id ??
+    province?.country?.id ??
+    region?.country?.id ??
+    country?.id ??
+    null;
+
+  return {
+    latitude: toNumberValue(latitude),
+    longitude: toNumberValue(longitude),
+    city: city?.id ?? null,
+    province: resolvedProvinceId,
+    country: resolvedCountryId,
+    region: resolvedRegionId,
+  };
+};
+
 export const importLegacyWalks = async (
   strapi: Core.Strapi,
   options: ImportOptions
@@ -826,14 +867,7 @@ export const importLegacyWalks = async (
 
     startLocations.push({
       name: toStringValue(walk.Start_plaats) ?? undefined,
-      address: {
-        latitude: toNumberValue(walk.Cor1),
-        longitude: toNumberValue(walk.Cor2),
-        city: startCity?.id ?? null,
-        province: province?.id ?? null,
-        country: country?.id ?? null,
-        region: region?.id ?? null,
-      },
+      address: buildStartAddress(startCity, province, region, country, walk.Cor1, walk.Cor2),
       gpx_file: primaryStartLocationGpx?.id ?? null,
       distance_km: toNumberValue(walk.Aantal_km),
       duration_minutes: parseDurationMinutes(walk.Aantal_tijd),
@@ -842,6 +876,22 @@ export const importLegacyWalks = async (
     });
 
     for (const gpxRow of gpxByWalkId.get(Number(walk.ID)) ?? []) {
+      const gpxStartCityName = toStringValue(gpxRow.Start_gemeente) ?? startCityName;
+      const gpxStartCity =
+        gpxStartCityName && gpxStartCityName !== startCityName
+          ? await ensureNamedEntity(
+              strapi,
+              'api::city.city',
+              gpxStartCityName,
+              {
+                country: country?.id ?? null,
+                province: province?.id ?? null,
+                region: region?.id ?? null,
+              },
+              options.locale,
+              options.dryRun
+            )
+          : startCity;
       const gpxPath = await resolveLegacyFile(options.legacyRoot, 'gpx', gpxRow.GPX);
       const gpxFile = gpxPath
         ? await uploadLocalFile(strapi, gpxPath, path.basename(gpxPath), 'gpx', null, null, options.dryRun)
@@ -849,14 +899,7 @@ export const importLegacyWalks = async (
 
       startLocations.push({
         name: toStringValue(gpxRow.Start_plaats) ?? toStringValue(gpxRow.Titel) ?? undefined,
-        address: {
-          latitude: toNumberValue(gpxRow.Cor1),
-          longitude: toNumberValue(gpxRow.Cor2),
-          city: startCity?.id ?? null,
-          province: province?.id ?? null,
-          country: country?.id ?? null,
-          region: region?.id ?? null,
-        },
+        address: buildStartAddress(gpxStartCity, province, region, country, gpxRow.Cor1, gpxRow.Cor2),
         gpx_file: gpxFile?.id ?? null,
         distance_km: toNumberValue(walk.Aantal_km),
         duration_minutes: parseDurationMinutes(walk.Aantal_tijd),
