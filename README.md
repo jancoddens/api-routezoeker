@@ -99,3 +99,10 @@ CLI sync:
 ```bash
 npm run import:node-network -- 1
 ```
+
+CLI sync by phase:
+
+```bash
+npm run import:node-network -- 1 -- 1
+npm run import:node-network -- 1 -- 2
+```

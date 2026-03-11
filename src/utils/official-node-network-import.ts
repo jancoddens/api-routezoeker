@@ -40,6 +40,8 @@ export type OfficialNodeNetworkSourceConfig = {
   distanceUnit?: 'm' | 'km';
 };
 
+type SyncStep = 1 | 2;
+
 type NormalizedNode = {
   externalId: string;
   number: string;
@@ -276,20 +278,27 @@ export const syncOfficialNodeNetwork = async (
     country?: { id: number } | null;
     province?: { id: number } | null;
     region?: { id: number } | null;
+  },
+  options?: {
+    step?: SyncStep;
   }
 ) => {
   const sourceConfig = nodeNetwork.source_config;
+  const step = options?.step;
 
   if (!sourceConfig || sourceConfig.provider !== 'geojson-pair') {
     throw new Error('source_config.provider must be "geojson-pair"');
   }
 
+  const shouldSyncNodes = step === undefined || step === 1;
+  const shouldSyncConnections = step === undefined || step === 2;
+
   const [nodeCollection, connectionCollection] = await Promise.all([
-    fetchGeoJson(sourceConfig.nodesUrl),
-    fetchGeoJson(sourceConfig.connectionsUrl),
+    shouldSyncNodes || shouldSyncConnections ? fetchGeoJson(sourceConfig.nodesUrl) : null,
+    shouldSyncConnections ? fetchGeoJson(sourceConfig.connectionsUrl) : null,
   ]);
 
-  const normalizedNodes = nodeCollection.features
+  const normalizedNodes = (nodeCollection?.features ?? [])
     .map((feature) => normalizeNodeFeature(feature, sourceConfig))
     .filter((node): node is NormalizedNode => node !== null);
 
@@ -320,40 +329,42 @@ export const syncOfficialNodeNetwork = async (
   let createdNodes = 0;
   let updatedNodes = 0;
 
-  for (const normalizedNode of normalizedNodes) {
-    const existingNodeId = nodeIdByExternalId.get(normalizedNode.externalId);
-    const data = {
-      external_id: normalizedNode.externalId,
-      number: normalizedNode.number,
-      name: normalizedNode.name,
-      latitude: normalizedNode.latitude,
-      longitude: normalizedNode.longitude,
-      node_network: nodeNetwork.id,
-      country: nodeNetwork.country?.id ?? null,
-      province: nodeNetwork.province?.id ?? null,
-      publishedAt: publishedAt(),
-    };
+  if (shouldSyncNodes) {
+    for (const normalizedNode of normalizedNodes) {
+      const existingNodeId = nodeIdByExternalId.get(normalizedNode.externalId);
+      const data = {
+        external_id: normalizedNode.externalId,
+        number: normalizedNode.number,
+        name: normalizedNode.name,
+        latitude: normalizedNode.latitude,
+        longitude: normalizedNode.longitude,
+        node_network: nodeNetwork.id,
+        country: nodeNetwork.country?.id ?? null,
+        province: nodeNetwork.province?.id ?? null,
+        publishedAt: publishedAt(),
+      };
 
-    if (existingNodeId) {
-      await strapi.entityService.update('api::node.node', existingNodeId, {
+      if (existingNodeId) {
+        await strapi.entityService.update('api::node.node', existingNodeId, {
+          data: data as never,
+        });
+        updatedNodes += 1;
+        nodeIdByExternalId.set(normalizedNode.externalId, existingNodeId);
+        nodeIdByNumber.set(normalizedNode.number, existingNodeId);
+        continue;
+      }
+
+      const createdNode = (await strapi.entityService.create('api::node.node', {
         data: data as never,
-      });
-      updatedNodes += 1;
-      nodeIdByExternalId.set(normalizedNode.externalId, existingNodeId);
-      nodeIdByNumber.set(normalizedNode.number, existingNodeId);
-      continue;
+      })) as { id: number };
+
+      createdNodes += 1;
+      nodeIdByExternalId.set(normalizedNode.externalId, createdNode.id);
+      nodeIdByNumber.set(normalizedNode.number, createdNode.id);
     }
-
-    const createdNode = (await strapi.entityService.create('api::node.node', {
-      data: data as never,
-    })) as { id: number };
-
-    createdNodes += 1;
-    nodeIdByExternalId.set(normalizedNode.externalId, createdNode.id);
-    nodeIdByNumber.set(normalizedNode.number, createdNode.id);
   }
 
-  const normalizedConnections = connectionCollection.features
+  const normalizedConnections = (connectionCollection?.features ?? [])
     .map((feature) => normalizeConnectionFeature(feature, sourceConfig))
     .filter((connection): connection is NormalizedConnection => connection !== null);
 
@@ -381,53 +392,60 @@ export const syncOfficialNodeNetwork = async (
   let skippedConnections = 0;
   const incomingConnectionExternalIds = new Set<string>();
 
-  for (const normalizedConnection of normalizedConnections) {
-    incomingConnectionExternalIds.add(normalizedConnection.externalId);
+  if (shouldSyncConnections) {
+    for (const normalizedConnection of normalizedConnections) {
+      incomingConnectionExternalIds.add(normalizedConnection.externalId);
 
-    const fromNodeId =
-      nodeIdByExternalId.get(normalizedConnection.fromRef) ?? nodeIdByNumber.get(normalizedConnection.fromRef);
-    const toNodeId =
-      nodeIdByExternalId.get(normalizedConnection.toRef) ?? nodeIdByNumber.get(normalizedConnection.toRef);
+      const fromNodeId =
+        nodeIdByExternalId.get(normalizedConnection.fromRef) ?? nodeIdByNumber.get(normalizedConnection.fromRef);
+      const toNodeId =
+        nodeIdByExternalId.get(normalizedConnection.toRef) ?? nodeIdByNumber.get(normalizedConnection.toRef);
 
-    if (!fromNodeId || !toNodeId) {
-      skippedConnections += 1;
-      continue;
-    }
+      if (!fromNodeId || !toNodeId) {
+        skippedConnections += 1;
+        continue;
+      }
 
-    const data = {
-      external_id: normalizedConnection.externalId,
-      node_network: nodeNetwork.id,
-      from_node: [fromNodeId],
-      to_node: [toNodeId],
-      distance_km: normalizedConnection.distanceKm,
-      geometry: normalizedConnection.geometry,
-      publishedAt: publishedAt(),
-    };
-    const existingConnectionId = connectionIdByExternalId.get(normalizedConnection.externalId);
+      const data = {
+        external_id: normalizedConnection.externalId,
+        node_network: nodeNetwork.id,
+        from_node: {
+          set: [fromNodeId],
+        },
+        to_node: {
+          set: [toNodeId],
+        },
+        distance_km: normalizedConnection.distanceKm,
+        geometry: normalizedConnection.geometry,
+        publishedAt: publishedAt(),
+      };
+      const existingConnectionId = connectionIdByExternalId.get(normalizedConnection.externalId);
 
-    if (existingConnectionId) {
-      await strapi.entityService.update('api::node-connection.node-connection', existingConnectionId, {
+      if (existingConnectionId) {
+        await strapi.entityService.update('api::node-connection.node-connection', existingConnectionId, {
+          data: data as never,
+        });
+        updatedConnections += 1;
+        continue;
+      }
+
+      await strapi.entityService.create('api::node-connection.node-connection', {
         data: data as never,
       });
-      updatedConnections += 1;
-      continue;
+      createdConnections += 1;
     }
 
-    await strapi.entityService.create('api::node-connection.node-connection', {
-      data: data as never,
-    });
-    createdConnections += 1;
-  }
+    for (const existingConnection of existingConnections) {
+      if (!existingConnection.external_id || incomingConnectionExternalIds.has(existingConnection.external_id)) {
+        continue;
+      }
 
-  for (const existingConnection of existingConnections) {
-    if (!existingConnection.external_id || incomingConnectionExternalIds.has(existingConnection.external_id)) {
-      continue;
+      await strapi.entityService.delete('api::node-connection.node-connection', existingConnection.id);
     }
-
-    await strapi.entityService.delete('api::node-connection.node-connection', existingConnection.id);
   }
 
   return {
+    step: step ?? 'all',
     createdNodes,
     updatedNodes,
     createdConnections,

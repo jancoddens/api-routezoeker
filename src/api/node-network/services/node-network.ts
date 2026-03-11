@@ -91,7 +91,8 @@ export default factories.createCoreService('api::node-network.node-network', ({ 
 
   async syncOfficialDataset(
     nodeNetworkId: number,
-    preloadedNodeNetwork?: SyncableNodeNetwork
+    preloadedNodeNetwork?: SyncableNodeNetwork,
+    options?: { step?: 1 | 2 }
   ) {
     if (syncLocks.has(nodeNetworkId)) {
       return {
@@ -128,7 +129,7 @@ export default factories.createCoreService('api::node-network.node-network', ({ 
     }
 
     try {
-      const result = await syncOfficialNodeNetwork(strapi, nodeNetwork);
+      const result = await syncOfficialNodeNetwork(strapi, nodeNetwork, options);
       await updateImportStatus(strapi, nodeNetworkId, {
         last_imported_at: new Date().toISOString(),
         last_import_status: 'success',
