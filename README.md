@@ -106,3 +106,41 @@ CLI sync by phase:
 npm run import:node-network -- 1 -- 1
 npm run import:node-network -- 1 -- 2
 ```
+
+## Belgian city import
+
+This project can import Belgian municipalities into Strapi `city` entries.
+
+Supported source formats:
+
+- GeoJSON `FeatureCollection`
+- JSON array of records
+
+Expected fields are matched heuristically. The importer looks for common keys such as:
+
+- `name`, `naam`, `municipality`, `gemeente`, `city`
+- `postal_code`, `postcode`, `zip`
+- `province`, `provincie`
+- `region`, `regio`
+- `latitude`, `lat`, `y`
+- `longitude`, `lng`, `lon`, `x`
+
+When the source is GeoJSON, polygon boundaries are stored in `boundary_geojson` and centroids are computed automatically. The importer also ensures Belgium, the three regions, and the ten provinces exist before importing cities.
+
+CLI import:
+
+```bash
+npm run import:belgian-cities -- ./data/belgian-municipalities.geojson
+```
+
+Dry run:
+
+```bash
+npm run import:belgian-cities -- ./data/belgian-municipalities.geojson --dry-run
+```
+
+Import a subset:
+
+```bash
+npm run import:belgian-cities -- ./data/belgian-municipalities.geojson --limit 10
+```
