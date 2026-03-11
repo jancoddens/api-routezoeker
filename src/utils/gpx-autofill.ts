@@ -25,6 +25,7 @@ type RouteStartLocation = {
   elevation_loss?: number | null;
   route_geometry?: unknown;
   elevation_profile?: unknown;
+  read_out_gpx?: boolean | null;
   [key: string]: unknown;
 };
 
@@ -702,21 +703,36 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
     return null;
   }
 
+  if (!startLocations.some((startLocation) => startLocation.read_out_gpx === true)) {
+    return null;
+  }
+
   const nextStartLocations: RouteStartLocation[] = [];
   const parsedEntries: ParsedGpx[] = [];
 
   for (const startLocation of startLocations) {
+    if (startLocation.read_out_gpx !== true) {
+      nextStartLocations.push(startLocation);
+      continue;
+    }
+
     const gpxXml = await readGpxFile(startLocation.gpx_file);
 
     if (!gpxXml) {
-      nextStartLocations.push(startLocation);
+      nextStartLocations.push({
+        ...startLocation,
+        read_out_gpx: false,
+      });
       continue;
     }
 
     const parsed = parseGpx(gpxXml);
 
     if (!parsed) {
-      nextStartLocations.push(startLocation);
+      nextStartLocations.push({
+        ...startLocation,
+        read_out_gpx: false,
+      });
       continue;
     }
 
@@ -735,6 +751,7 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
       elevation_loss: parsed.elevationLoss,
       route_geometry: parsed.routeGeometry,
       elevation_profile: parsed.elevationProfile,
+      read_out_gpx: false,
     });
   }
 

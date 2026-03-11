@@ -283,6 +283,7 @@ export interface RouteRouteStartLocation extends Struct.ComponentSchema {
     elevation_profile: Schema.Attribute.JSON;
     gpx_file: Schema.Attribute.Media;
     name: Schema.Attribute.String;
+    read_out_gpx: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     route_geometry: Schema.Attribute.JSON;
   };
 }

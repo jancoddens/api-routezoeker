@@ -189,16 +189,6 @@
       "component": "route.route-start-location",
       "repeatable": true
     },
-    "route_parking_locations": {
-      "type": "component",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      },
-      "component": "route.route-parking-location",
-      "repeatable": true
-    },
     "route_end_location": {
       "type": "component",
       "pluginOptions": {

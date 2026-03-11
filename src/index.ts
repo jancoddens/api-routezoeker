@@ -46,17 +46,7 @@ const shouldRunGpxAutofill = (updateData: unknown) => {
 
   const keys = Object.keys(updateData as Record<string, unknown>);
 
-  return keys.some((key) =>
-    [
-      'route_start_locations',
-      'route_end_location',
-      'route_waypoints',
-      'route_nodes',
-      'route_geometry',
-      'title',
-      'excerpt',
-    ].includes(key)
-  );
+  return keys.includes('route_start_locations');
 };
 
 const syncRouteFromGpx = async (

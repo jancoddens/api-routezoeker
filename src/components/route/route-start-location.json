@@ -37,6 +37,10 @@
     },
     "elevation_profile": {
       "type": "json"
+    },
+    "read_out_gpx": {
+      "type": "boolean",
+      "default": false
     }
   },
   "config": {}
