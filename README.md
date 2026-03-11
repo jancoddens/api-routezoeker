@@ -84,5 +84,14 @@ This project can sync official node-network datasets into Strapi `node` and `nod
 3. Set `sync_enabled` to `true`.
 4. Optional: set `NODE_NETWORK_IMPORT_ON_BOOT=true` to import on startup.
 5. Optional: override the daily schedule with `NODE_NETWORK_IMPORT_CRON` and `NODE_NETWORK_IMPORT_TZ`.
+6. Optional: set `NODE_NETWORK_SYNC_TOKEN` to allow manual sync calls.
 
 The importer updates existing nodes by `external_id`, creates missing nodes, updates connections, and removes stale connections for the synced network.
+
+Manual sync:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $NODE_NETWORK_SYNC_TOKEN" \
+  http://localhost:1337/api/node-networks/1/sync
+```
