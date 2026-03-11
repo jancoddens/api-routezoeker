@@ -285,6 +285,7 @@ export interface RouteRouteStartLocation extends Struct.ComponentSchema {
     name: Schema.Attribute.String;
     read_out_gpx: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     route_geometry: Schema.Attribute.JSON;
+    surface_percentage_hard: Schema.Attribute.Integer;
   };
 }
 

@@ -168,3 +168,25 @@ npm run import:dutch-cities -- --dry-run --limit 20
 ```
 
 The importer uses the public `georef-netherlands-gemeente` dataset and stores municipality names, centroids, boundaries, and province relations. `city.country` is derived from the matched province's `country` relation when available.
+
+## Legacy walk import
+
+This project can import legacy walking routes from the old Routezoeker MySQL database and local media folders.
+
+Dry run:
+
+```bash
+npm run import:legacy-walks -- --dry-run --limit 5
+```
+
+Import:
+
+```bash
+npm run import:legacy-walks
+```
+
+Optional overrides:
+
+```bash
+npm run import:legacy-walks -- --config /path/to/config.php --legacy-root /path/to/legacy/site --host 127.0.0.1
+```

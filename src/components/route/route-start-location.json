@@ -26,6 +26,9 @@
     "duration_minutes": {
       "type": "integer"
     },
+    "surface_percentage_hard": {
+      "type": "integer"
+    },
     "elevation_gain": {
       "type": "integer"
     },

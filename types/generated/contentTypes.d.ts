@@ -1352,6 +1352,12 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
       }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::route.route'>;
+    pdf: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     provinces: Schema.Attribute.Relation<
       'manyToMany',
       'api::province.province'
@@ -1364,6 +1370,12 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
       }>;
     publishedAt: Schema.Attribute.DateTime;
     region: Schema.Attribute.Relation<'oneToOne', 'api::region.region'>;
+    route_by: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     route_end_location: Schema.Attribute.Component<
       'route.route-end-location',
       true
