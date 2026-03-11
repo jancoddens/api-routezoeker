@@ -47,13 +47,15 @@ type GeoRefDutchRecord = {
 
 type OpendatasoftResponse = {
   total_count?: number;
-  results?: GeoRefDutchRecord[];
+  results?: JsonRecord[];
 };
 
 const COUNTRY_NAME = 'Nederland';
 const COUNTRY_SLUG = 'nederland';
 const DEFAULT_SOURCE =
   'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-netherlands-gemeente/records';
+const DEFAULT_POSTCODE_SOURCE =
+  'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-netherlands-postcode-pc4/records';
 const DEFAULT_PAGE_SIZE = 100;
 
 const DUTCH_COUNTRY_ALIASES = ['nederland', 'netherlands', 'the-netherlands', 'holland', 'nl'];
@@ -184,21 +186,50 @@ const fetchJson = async (url: string) => {
   return (await response.json()) as unknown;
 };
 
-const fetchDefaultDataset = async () => {
+const fetchPagedDataset = async (baseUrl: string) => {
   const firstPage = (await fetchJson(
-    `${DEFAULT_SOURCE}?limit=${DEFAULT_PAGE_SIZE}&offset=0`
+    `${baseUrl}?limit=${DEFAULT_PAGE_SIZE}&offset=0`
   )) as OpendatasoftResponse;
   const total = firstPage.total_count ?? firstPage.results?.length ?? 0;
   const results = [...(firstPage.results ?? [])];
 
   for (let offset = DEFAULT_PAGE_SIZE; offset < total; offset += DEFAULT_PAGE_SIZE) {
     const page = (await fetchJson(
-      `${DEFAULT_SOURCE}?limit=${DEFAULT_PAGE_SIZE}&offset=${offset}`
+      `${baseUrl}?limit=${DEFAULT_PAGE_SIZE}&offset=${offset}`
     )) as OpendatasoftResponse;
     results.push(...(page.results ?? []));
   }
 
   return { total_count: total, results };
+};
+
+const fetchDefaultDataset = async () => fetchPagedDataset(DEFAULT_SOURCE);
+
+const fetchDefaultPostcodes = async () => {
+  const payload = await fetchPagedDataset(DEFAULT_POSTCODE_SOURCE);
+  const postcodeMap = new Map<string, string>();
+
+  for (const row of payload.results ?? []) {
+    const record = row as {
+      gem_name?: string;
+      pc4_code?: string;
+    };
+    const name = toStringValue(record.gem_name);
+    const postcode = toStringValue(record.pc4_code);
+
+    if (!name || !postcode) {
+      continue;
+    }
+
+    const key = slugify(name);
+    const existing = postcodeMap.get(key);
+
+    if (!existing || postcode < existing) {
+      postcodeMap.set(key, postcode);
+    }
+  }
+
+  return postcodeMap;
 };
 
 const parseOpendatasoftResults = (payload: unknown) => {
@@ -217,7 +248,10 @@ const parseOpendatasoftResults = (payload: unknown) => {
   throw new Error('Unsupported Dutch import payload. Expected Opendatasoft results or JSON array.');
 };
 
-const normalizeRecord = (record: GeoRefDutchRecord): ImportSourceRecord | null => {
+const normalizeRecord = (
+  record: GeoRefDutchRecord,
+  postcodeMap?: Map<string, string>
+): ImportSourceRecord | null => {
   const name = toStringValue(record.gem_name?.[0]);
 
   if (!name) {
@@ -234,7 +268,7 @@ const normalizeRecord = (record: GeoRefDutchRecord): ImportSourceRecord | null =
   return {
     name,
     slug: slugify(name),
-    postalCode: null,
+    postalCode: postcodeMap?.get(slugify(name)) ?? null,
     latitude,
     longitude,
     boundaryGeojson: geometry,
@@ -373,10 +407,12 @@ export const importDutchCities = async (
   options: ImportOptions = {}
 ): Promise<ImportSummary> => {
   const resolvedSource = source ?? DEFAULT_SOURCE;
-  const payload =
-    resolvedSource === DEFAULT_SOURCE ? await fetchDefaultDataset() : await fetchPayload(resolvedSource);
+  const [payload, postcodeMap] =
+    resolvedSource === DEFAULT_SOURCE
+      ? await Promise.all([fetchDefaultDataset(), fetchDefaultPostcodes()])
+      : [await fetchPayload(resolvedSource), undefined];
   const normalizedItems = parseOpendatasoftResults(payload)
-    .map((item) => normalizeRecord(item))
+    .map((item) => normalizeRecord(item, postcodeMap))
     .filter((item): item is ImportSourceRecord => item !== null);
   const limitedItems =
     options.limit && options.limit > 0 ? normalizedItems.slice(0, options.limit) : normalizedItems;
