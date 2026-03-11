@@ -2,6 +2,19 @@ import type { Core } from '@strapi/strapi';
 
 import { buildRouteAutofill } from './utils/gpx-autofill';
 
+const parseNodeNetworkImportIds = () => {
+  const rawValue = process.env.NODE_NETWORK_IMPORT_NETWORK_IDS;
+
+  if (!rawValue) {
+    return [];
+  }
+
+  return rawValue
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value > 0);
+};
+
 export default {
   /**
    * An asynchronous register function that runs before
@@ -44,9 +57,10 @@ export default {
     });
 
     if (process.env.NODE_NETWORK_IMPORT_ON_BOOT === 'true') {
+      const ids = parseNodeNetworkImportIds();
       void strapi
         .service('api::node-network.node-network')
-        .syncConfiguredOfficialDatasets()
+        .syncConfiguredOfficialDatasets(ids.length ? { ids } : undefined)
         .catch((error: unknown) => {
           strapi.log.error('Bootstrap official node-network import failed', error);
         });

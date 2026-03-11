@@ -49,10 +49,17 @@ const toSyncableNodeNetwork = (value: unknown): SyncableNodeNetwork | null => {
 };
 
 export default factories.createCoreService('api::node-network.node-network', ({ strapi }) => ({
-  async syncConfiguredOfficialDatasets() {
+  async syncConfiguredOfficialDatasets(options?: { ids?: number[] }) {
     const rawNodeNetworks = await strapi.entityService.findMany('api::node-network.node-network', {
       filters: {
         sync_enabled: true,
+        ...(options?.ids?.length
+          ? {
+              id: {
+                $in: options.ids,
+              },
+            }
+          : {}),
       },
       fields: ['id', 'name', 'source_config'],
       populate: {
