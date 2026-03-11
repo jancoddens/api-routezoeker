@@ -1350,6 +1350,18 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    knooppunten: Schema.Attribute.Text &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    knooppunten_afstand: Schema.Attribute.Text &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::route.route'>;
     pdf: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &

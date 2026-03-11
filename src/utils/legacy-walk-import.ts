@@ -78,7 +78,7 @@ type LegacyGpxRow = {
 
 type EntityReference = {
   id: number;
-  name: string;
+  name?: string;
   slug: string;
   country?: { id: number } | null;
   province?: { id: number } | null;
@@ -400,6 +400,36 @@ const findOneBySlugOrName = async (
   return Array.isArray(entries) ? ((entries[0] as unknown) as EntityReference | undefined) : undefined;
 };
 
+const ensureThemeEntity = async (
+  strapi: Core.Strapi,
+  title: string,
+  locale?: string,
+  dryRun?: boolean
+) => {
+  const slug = slugify(title);
+  const entries = await strapi.entityService.findMany('api::theme.theme', {
+    filters: {
+      $or: [{ slug: { $eq: slug } }, { title: { $eq: title } }],
+    },
+    locale,
+    limit: 1,
+  });
+  const existing = Array.isArray(entries) ? ((entries[0] as unknown) as EntityReference | undefined) : undefined;
+
+  if (existing || dryRun) {
+    return existing ?? { id: 0, name: title, slug };
+  }
+
+  return (await strapi.entityService.create('api::theme.theme', {
+    data: {
+      title,
+      slug,
+      publishedAt: new Date().toISOString(),
+    } as never,
+    locale,
+  })) as EntityReference;
+};
+
 const ensureNamedEntity = async (
   strapi: Core.Strapi,
   uid:
@@ -658,6 +688,7 @@ export const importLegacyWalks = async (
     const regionName = toStringValue(walk.Regio);
     const startCityName = toStringValue(walk.Start_gemeente) ?? cityName;
     const routeTypeName = toStringValue(walk.Type);
+    const walkingTheme = await ensureThemeEntity(strapi, 'Wandelen', options.locale, options.dryRun);
 
     const country = countryName
       ? await ensureNamedEntity(strapi, 'api::country.country', countryName, {}, options.locale, options.dryRun)
@@ -720,7 +751,9 @@ export const importLegacyWalks = async (
           strapi,
           'api::route-type.route-type',
           routeTypeName,
-          {},
+          {
+            theme: walkingTheme?.id ?? null,
+          },
           options.locale,
           options.dryRun
         )
@@ -829,6 +862,7 @@ export const importLegacyWalks = async (
       provinces: province?.id ? { connect: [province.id] } : undefined,
       cities: city?.id ? { connect: [city.id] } : undefined,
       region: region?.id ?? null,
+      theme: walkingTheme?.id ?? null,
       route_type: routeType?.id ? [routeType.id] : undefined,
       tags: tags.length > 0 ? { connect: tags } : undefined,
       route_start_locations: dedupeStartLocations(startLocations),
@@ -843,6 +877,8 @@ export const importLegacyWalks = async (
       cover_image: coverImage?.id ?? null,
       pdf: pdfFile?.id ?? null,
       route_by: toStringValue(walk.Aangeboden) ?? undefined,
+      knooppunten: toStringValue(walk.Knooppunten) ?? undefined,
+      knooppunten_afstand: toStringValue(walk.Knooppunten_afstand) ?? undefined,
       seo:
         toStringValue(walk.Meta_title) || toStringValue(walk.Meta_description)
           ? {

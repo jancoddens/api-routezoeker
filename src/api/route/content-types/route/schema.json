@@ -269,6 +269,22 @@
           "localized": true
         }
       }
+    },
+    "knooppunten": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "knooppunten_afstand": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     }
   }
 }
