@@ -406,11 +406,28 @@ const findOneBySlugOrName = async (
   name: string,
   locale?: string
 ) => {
+  const populateByUid: Partial<
+    Record<
+      | 'api::country.country'
+      | 'api::province.province'
+      | 'api::region.region'
+      | 'api::city.city'
+      | 'api::tag.tag'
+      | 'api::route-type.route-type'
+      | 'api::route.route',
+      string[]
+    >
+  > = {
+    'api::province.province': ['country'],
+    'api::region.region': ['country'],
+    'api::city.city': ['country', 'province', 'region'],
+  };
+
   const entries = await strapi.entityService.findMany(uid, {
     filters: {
       $or: [{ slug: { $eq: slug } }, { name: { $eq: name } }],
     },
-    populate: ['country', 'province', 'region'] as never,
+    ...(populateByUid[uid] ? { populate: populateByUid[uid] as never } : {}),
     locale,
     limit: 1,
   });
