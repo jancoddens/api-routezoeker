@@ -274,6 +274,7 @@ const distanceBetweenCoordinatePairsMeters = (
 
 type CandidateNode = {
   id: number;
+  number: string | null;
   latitude: number;
   longitude: number;
 };
@@ -344,10 +345,10 @@ const findMatchedRouteNodes = async (
   const findCandidates = async (filters: Record<string, unknown>) =>
     (await strapi.entityService.findMany('api::node.node', {
       filters,
-      fields: ['id', 'latitude', 'longitude'],
+      fields: ['id', 'number', 'latitude', 'longitude'],
       publicationState: 'preview',
       limit: 50000,
-    })) as Array<{ id: number; latitude?: number | string | null; longitude?: number | string | null }>;
+    })) as Array<{ id: number; number?: string | null; latitude?: number | string | null; longitude?: number | string | null }>;
 
   let candidates = await findCandidates({
     ...baseFilters,
@@ -382,6 +383,7 @@ const findMatchedRouteNodes = async (
 
       return {
         id: candidate.id,
+        number: candidate.number ?? null,
         latitude,
         longitude,
       };
@@ -433,6 +435,118 @@ const findMatchedRouteNodes = async (
   }
 
   return matchedNodes;
+};
+
+const findRouteNodesFromWaypoints = async (
+  strapi: Core.Strapi,
+  route: RouteEntity,
+  parsed: ParsedGpx
+) => {
+  const { provinceId, countryId } = extractRouteAreaFilter(route);
+  const waypointNumbers = parsed.waypoints
+    .map((waypoint) => asText(waypoint.title))
+    .filter((value): value is string => Boolean(value));
+
+  if (waypointNumbers.length === 0) {
+    return [];
+  }
+
+  const uniqueWaypointNumbers = Array.from(new Set(waypointNumbers));
+  const candidates = (await strapi.entityService.findMany('api::node.node', {
+    filters: {
+      number: {
+        $in: uniqueWaypointNumbers,
+      },
+      ...(provinceId
+        ? {
+            province: {
+              id: provinceId,
+            },
+          }
+        : {}),
+      ...(countryId
+        ? {
+            country: {
+              id: countryId,
+            },
+          }
+        : {}),
+    },
+    fields: ['id', 'number', 'latitude', 'longitude'],
+    publicationState: 'preview',
+    limit: uniqueWaypointNumbers.length * 20,
+  })) as Array<{ id: number; number?: string | null; latitude?: number | string | null; longitude?: number | string | null }>;
+
+  const candidatesByNumber = new Map<string, CandidateNode[]>();
+
+  for (const candidate of candidates) {
+    const number = asText(candidate.number);
+    const latitude = typeof candidate.latitude === 'number' ? candidate.latitude : Number(candidate.latitude);
+    const longitude = typeof candidate.longitude === 'number' ? candidate.longitude : Number(candidate.longitude);
+
+    if (!number || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      continue;
+    }
+
+    const existing = candidatesByNumber.get(number) ?? [];
+    existing.push({
+      id: candidate.id,
+      number,
+      latitude,
+      longitude,
+    });
+    candidatesByNumber.set(number, existing);
+  }
+
+  const routeNodes: Array<{ node: number; order: number }> = [];
+
+  for (const waypoint of parsed.waypoints) {
+    const number = asText(waypoint.title);
+
+    if (!number) {
+      continue;
+    }
+
+    const candidatesForNumber = candidatesByNumber.get(number) ?? [];
+
+    if (candidatesForNumber.length === 0) {
+      continue;
+    }
+
+    const waypointCoordinate = {
+      latitude: Number(waypoint.latitude),
+      longitude: Number(waypoint.longitude),
+    };
+
+    let nearestCandidate: CandidateNode | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const candidate of candidatesForNumber) {
+      const distance = distanceBetweenCoordinatePairsMeters(waypointCoordinate, candidate);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestCandidate = candidate;
+      }
+    }
+
+    if (!nearestCandidate) {
+      continue;
+    }
+
+    const previousMatch = routeNodes[routeNodes.length - 1];
+
+    if (previousMatch?.node === nearestCandidate.id) {
+      continue;
+    }
+
+    routeNodes.push({
+      node: nearestCandidate.id,
+      order: routeNodes.length + 1,
+    });
+  }
+
+  return routeNodes;
 };
 
 const distanceBetweenPointsKm = (from: GpxPoint, to: GpxPoint) => {
@@ -658,7 +772,15 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
 
   const shouldImportRouteNodes =
     !Array.isArray(route.route_nodes) || route.route_nodes.length === 0;
-  const matchedRouteNodes = shouldImportRouteNodes ? await findMatchedRouteNodes(strapi, route, primary) : [];
+  const matchedRouteNodes = shouldImportRouteNodes
+    ? (() => findRouteNodesFromWaypoints(strapi, route, primary))()
+    : Promise.resolve([]);
+  const resolvedRouteNodes = shouldImportRouteNodes ? await matchedRouteNodes : [];
+  const fallbackRouteNodes =
+    shouldImportRouteNodes && resolvedRouteNodes.length === 0
+      ? await findMatchedRouteNodes(strapi, route, primary)
+      : [];
+  const routeNodes = resolvedRouteNodes.length > 0 ? resolvedRouteNodes : fallbackRouteNodes;
 
   return {
     title: asText(route.title) || primary.title || route.title,
@@ -667,6 +789,6 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
     route_geometry: primary.routeGeometry,
     route_start_locations: nextStartLocations,
     route_end_location: mergedEndLocations,
-    ...(matchedRouteNodes.length > 0 ? { route_nodes: matchedRouteNodes } : {}),
+    ...(routeNodes.length > 0 ? { route_nodes: routeNodes } : {}),
   };
 };
