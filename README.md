@@ -150,3 +150,21 @@ Import a subset:
 ```bash
 npm run import:belgian-cities -- ./data/belgian-municipalities.geojson --limit 10
 ```
+
+## Dutch city import
+
+This project can import Dutch municipalities into Strapi `city` entries.
+
+Built-in import:
+
+```bash
+npm run import:dutch-cities
+```
+
+Dry run:
+
+```bash
+npm run import:dutch-cities -- --dry-run --limit 20
+```
+
+The importer uses the public `georef-netherlands-gemeente` dataset and stores municipality names, centroids, boundaries, and province relations. `city.country` is derived from the matched province's `country` relation when available.
