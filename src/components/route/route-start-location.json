@@ -1,0 +1,49 @@
+{
+  "collectionName": "components_route_route_start_locations",
+  "info": {
+    "displayName": "route_start_location"
+  },
+  "options": {},
+  "attributes": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "address": {
+      "type": "component",
+      "component": "shared.address",
+      "repeatable": false
+    },
+    "gpx_file": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "distance_km": {
+      "type": "decimal"
+    },
+    "duration_minutes": {
+      "type": "integer"
+    },
+    "elevation_gain": {
+      "type": "integer"
+    },
+    "elevation_loss": {
+      "type": "integer"
+    },
+    "route_geometry": {
+      "type": "json"
+    },
+    "elevation_profile": {
+      "type": "json"
+    }
+  },
+  "config": {}
+}

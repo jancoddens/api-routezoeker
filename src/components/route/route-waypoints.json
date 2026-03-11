@@ -1,0 +1,57 @@
+{
+  "collectionName": "components_route_route_waypoints",
+  "info": {
+    "displayName": "route_waypoints"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "blocks"
+    },
+    "latitude": {
+      "type": "decimal"
+    },
+    "longitude": {
+      "type": "decimal"
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "gallery": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "waypoint_type": {
+      "type": "enumeration",
+      "enum": [
+        "viewpoint",
+        "nature",
+        "waterfall",
+        "castle",
+        "cafe",
+        "restaurant",
+        "parking",
+        "info",
+        "landmark",
+        "picnic"
+      ]
+    }
+  },
+  "config": {}
+}

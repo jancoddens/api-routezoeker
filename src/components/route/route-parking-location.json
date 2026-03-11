@@ -1,0 +1,21 @@
+{
+  "collectionName": "components_route_route_parking_locations",
+  "info": {
+    "displayName": "Route Parking Location"
+  },
+  "options": {},
+  "attributes": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "address": {
+      "type": "component",
+      "component": "shared.address",
+      "repeatable": false
+    }
+  },
+  "config": {}
+}

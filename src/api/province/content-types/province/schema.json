@@ -103,6 +103,12 @@
       "relation": "oneToMany",
       "target": "api::location-theme-page.location-theme-page",
       "mappedBy": "province"
+    },
+    "routes": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::route.route",
+      "inversedBy": "provinces"
     }
   }
 }

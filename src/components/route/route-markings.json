@@ -1,0 +1,39 @@
+{
+  "collectionName": "components_route_route_markings",
+  "info": {
+    "displayName": "route_markings"
+  },
+  "options": {},
+  "attributes": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "marking_type": {
+      "type": "enumeration",
+      "enum": [
+        "symbol",
+        "knooppunten",
+        "numbers",
+        "paint_marks",
+        "mixed"
+      ]
+    },
+    "color": {
+      "type": "string"
+    }
+  },
+  "config": {}
+}

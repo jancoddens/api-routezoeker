@@ -217,6 +217,115 @@ export interface PageBlocksTextSection extends Struct.ComponentSchema {
   };
 }
 
+export interface RouteRouteEndLocation extends Struct.ComponentSchema {
+  collectionName: 'components_route_route_end_locations';
+  info: {
+    displayName: 'route_end_location';
+  };
+  attributes: {
+    address: Schema.Attribute.Component<'shared.address', false>;
+    description: Schema.Attribute.Text;
+    name: Schema.Attribute.String;
+  };
+}
+
+export interface RouteRouteMarkings extends Struct.ComponentSchema {
+  collectionName: 'components_route_route_markings';
+  info: {
+    displayName: 'route_markings';
+  };
+  attributes: {
+    color: Schema.Attribute.String;
+    description: Schema.Attribute.Text;
+    image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+    marking_type: Schema.Attribute.Enumeration<
+      ['symbol', 'knooppunten', 'numbers', 'paint_marks', 'mixed']
+    >;
+    name: Schema.Attribute.String;
+  };
+}
+
+export interface RouteRouteParkingLocation extends Struct.ComponentSchema {
+  collectionName: 'components_route_route_parking_locations';
+  info: {
+    displayName: 'Route Parking Location';
+  };
+  attributes: {
+    address: Schema.Attribute.Component<'shared.address', false>;
+    description: Schema.Attribute.Text;
+    name: Schema.Attribute.String;
+  };
+}
+
+export interface RouteRouteStartLocation extends Struct.ComponentSchema {
+  collectionName: 'components_route_route_start_locations';
+  info: {
+    displayName: 'route_start_location';
+  };
+  attributes: {
+    address: Schema.Attribute.Component<'shared.address', false>;
+    description: Schema.Attribute.Text;
+    distance_km: Schema.Attribute.Decimal;
+    duration_minutes: Schema.Attribute.Integer;
+    elevation_gain: Schema.Attribute.Integer;
+    elevation_loss: Schema.Attribute.Integer;
+    elevation_profile: Schema.Attribute.JSON;
+    gpx_file: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+    name: Schema.Attribute.String;
+    route_geometry: Schema.Attribute.JSON;
+  };
+}
+
+export interface RouteRouteWaypoints extends Struct.ComponentSchema {
+  collectionName: 'components_route_route_waypoints';
+  info: {
+    displayName: 'route_waypoints';
+  };
+  attributes: {
+    description: Schema.Attribute.Blocks;
+    gallery: Schema.Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
+    image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+    latitude: Schema.Attribute.Decimal;
+    longitude: Schema.Attribute.Decimal;
+    title: Schema.Attribute.String;
+    waypoint_type: Schema.Attribute.Enumeration<
+      [
+        'viewpoint',
+        'nature',
+        'waterfall',
+        'castle',
+        'cafe',
+        'restaurant',
+        'parking',
+        'info',
+        'landmark',
+        'picnic',
+      ]
+    >;
+  };
+}
+
+export interface SharedAddress extends Struct.ComponentSchema {
+  collectionName: 'components_shared_addresses';
+  info: {
+    displayName: 'address';
+  };
+  attributes: {
+    city: Schema.Attribute.Relation<'oneToOne', 'api::city.city'>;
+    country: Schema.Attribute.Relation<'oneToOne', 'api::country.country'>;
+    house_number: Schema.Attribute.String;
+    latitude: Schema.Attribute.Decimal;
+    longitude: Schema.Attribute.Decimal;
+    postal_code: Schema.Attribute.String;
+    province: Schema.Attribute.Relation<'oneToOne', 'api::province.province'>;
+    region: Schema.Attribute.Relation<'oneToOne', 'api::region.region'>;
+    street: Schema.Attribute.String;
+  };
+}
+
 declare module '@strapi/strapi' {
   export module Public {
     export interface ComponentSchemas {
@@ -235,6 +344,12 @@ declare module '@strapi/strapi' {
       'page-blocks.quote': PageBlocksQuote;
       'page-blocks.region-slider': PageBlocksRegionSlider;
       'page-blocks.text-section': PageBlocksTextSection;
+      'route.route-end-location': RouteRouteEndLocation;
+      'route.route-markings': RouteRouteMarkings;
+      'route.route-parking-location': RouteRouteParkingLocation;
+      'route.route-start-location': RouteRouteStartLocation;
+      'route.route-waypoints': RouteRouteWaypoints;
+      'shared.address': SharedAddress;
     }
   }
 }

@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "themes",
+  "collectionName": "route_types",
   "info": {
-    "singularName": "theme",
-    "pluralName": "themes",
-    "displayName": "Theme"
+    "singularName": "route-type",
+    "pluralName": "route-types",
+    "displayName": "Route type"
   },
   "options": {
     "draftAndPublish": true
@@ -15,7 +15,7 @@
     }
   },
   "attributes": {
-    "title": {
+    "name": {
       "type": "string",
       "pluginOptions": {
         "i18n": {
@@ -31,23 +31,25 @@
         }
       }
     },
-    "location_theme_pages": {
+    "theme": {
       "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::location-theme-page.location-theme-page",
-      "mappedBy": "theme"
+      "relation": "manyToOne",
+      "target": "api::theme.theme",
+      "inversedBy": "route_types"
     },
     "routes": {
       "type": "relation",
-      "relation": "oneToMany",
+      "relation": "manyToMany",
       "target": "api::route.route",
-      "mappedBy": "theme"
+      "mappedBy": "route_type"
     },
-    "route_types": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::route-type.route-type",
-      "mappedBy": "theme"
+    "description": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     }
   }
 }
