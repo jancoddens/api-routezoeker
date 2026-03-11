@@ -31,6 +31,7 @@ type EntityReference = {
   slug: string;
   iso_code?: string | null;
   code?: string | null;
+  country?: { id: number } | null;
 };
 
 type ImportSummary = {
@@ -550,6 +551,7 @@ const listEntities = async (
   locale?: string
 ) => {
   const entries = await strapi.entityService.findMany(uid, {
+    populate: uid === 'api::province.province' ? ({ country: true } as never) : undefined,
     locale,
     limit: 500,
   });
@@ -804,6 +806,9 @@ export const importBelgianCities = async (
     const region = regionSlug ? regions.get(regionSlug) : undefined;
     const province = provinceSlug ? provinces.get(provinceSlug) : undefined;
     const itemCountry =
+      (province?.country?.id
+        ? countries.find((candidate) => candidate.id === province.country?.id)
+        : undefined) ??
       findCountryCandidate(countries, COUNTRY_NAME, regionSlug) ??
       findCountryCandidate(countries, item.regionName, regionSlug) ??
       country;
