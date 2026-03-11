@@ -927,7 +927,7 @@ export interface ApiNodeConnectionNodeConnection
     singularName: 'node-connection';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     createdAt: Schema.Attribute.DateTime;
@@ -1025,12 +1025,7 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
     singularName: 'node';
   };
   options: {
-    draftAndPublish: true;
-  };
-  pluginOptions: {
-    i18n: {
-      localized: true;
-    };
+    draftAndPublish: false;
   };
   attributes: {
     city: Schema.Attribute.Relation<'manyToOne', 'api::city.city'>;
@@ -1039,26 +1034,12 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     external_id: Schema.Attribute.String;
-    latitude: Schema.Attribute.Decimal &
-      Schema.Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }>;
-    locale: Schema.Attribute.String;
-    localizations: Schema.Attribute.Relation<'oneToMany', 'api::node.node'>;
-    longitude: Schema.Attribute.Decimal &
-      Schema.Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }>;
-    name: Schema.Attribute.String &
-      Schema.Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }>;
+    latitude: Schema.Attribute.Decimal;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::node.node'> &
+      Schema.Attribute.Private;
+    longitude: Schema.Attribute.Decimal;
+    name: Schema.Attribute.String;
     node_connections_from: Schema.Attribute.Relation<
       'manyToMany',
       'api::node-connection.node-connection'
@@ -1071,12 +1052,7 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
       'manyToOne',
       'api::node-network.node-network'
     >;
-    number: Schema.Attribute.String &
-      Schema.Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }>;
+    number: Schema.Attribute.String;
     province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;
     publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
