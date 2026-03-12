@@ -109,7 +109,7 @@ npm run import:node-network -- 1 -- 2
 
 ## Belgian city import
 
-This project can import Belgian municipalities into Strapi `city` entries. When a legacy `Deelgemeenten` database is available, the built-in import also appends Flemish submunicipalities.
+This project can import Belgian municipalities into Strapi `city` entries. When a legacy database is available, the built-in import also appends Flemish submunicipalities from `Deelgemeenten` and enriches Flemish municipalities/submunicipalities with postcode and coordinates from `Cors`.
 
 Supported source formats:
 

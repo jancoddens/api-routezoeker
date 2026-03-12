@@ -90,6 +90,13 @@ type LegacySubmunicipalityRow = {
   Land?: string | null;
 };
 
+type LegacyCorsRow = {
+  Titel?: string | null;
+  Latitude?: string | number | null;
+  Longitude?: string | number | null;
+  Postcode?: string | number | null;
+};
+
 const REGION_DEFINITIONS = [
   { name: 'Vlaanderen', slug: 'vlaanderen' },
   { name: 'Wallonie', slug: 'wallonie' },
@@ -624,6 +631,51 @@ const resolveLegacyConfigPath = async (explicitPath?: string) => {
   return null;
 };
 
+const loadLegacyCorsIndex = async (legacyConfigPath?: string) => {
+  const resolvedConfigPath = await resolveLegacyConfigPath(legacyConfigPath);
+
+  if (!resolvedConfigPath) {
+    return new Map<
+      string,
+      {
+        postalCode: string | null;
+        latitude: number | null;
+        longitude: number | null;
+      }
+    >();
+  }
+
+  const config = await parsePhpConfig(resolvedConfigPath);
+  const corsRows = (await runMysqlQuery(
+    config,
+    buildMysqlJsonSelect('Cors', ['Titel', 'Latitude', 'Longitude', 'Postcode'], '')
+  )) as LegacyCorsRow[];
+  const corsBySlug = new Map<
+    string,
+    {
+      postalCode: string | null;
+      latitude: number | null;
+      longitude: number | null;
+    }
+  >();
+
+  for (const row of corsRows) {
+    const title = toStringValue(row.Titel);
+
+    if (!title) {
+      continue;
+    }
+
+    corsBySlug.set(slugify(title), {
+      postalCode: toStringValue(row.Postcode),
+      latitude: toNumberValue(row.Latitude),
+      longitude: toNumberValue(row.Longitude),
+    });
+  }
+
+  return corsBySlug;
+};
+
 const loadFlemishSubmunicipalities = async (legacyConfigPath?: string): Promise<ImportSourceRecord[]> => {
   const resolvedConfigPath = await resolveLegacyConfigPath(legacyConfigPath);
 
@@ -632,14 +684,17 @@ const loadFlemishSubmunicipalities = async (legacyConfigPath?: string): Promise<
   }
 
   const config = await parsePhpConfig(resolvedConfigPath);
-  const rows = (await runMysqlQuery(
-    config,
-    buildMysqlJsonSelect(
-      'Deelgemeenten',
-      ['Hoofdgemeente', 'Deelgemeente', 'Subgemeente', 'Provincie', 'Land'],
-      "Land = 'Vlaanderen'"
-    )
-  )) as LegacySubmunicipalityRow[];
+  const [rows, corsBySlug] = await Promise.all([
+    runMysqlQuery(
+      config,
+      buildMysqlJsonSelect(
+        'Deelgemeenten',
+        ['Hoofdgemeente', 'Deelgemeente', 'Subgemeente', 'Provincie', 'Land'],
+        "Land = 'Vlaanderen'"
+      )
+    ) as Promise<LegacySubmunicipalityRow[]>,
+    loadLegacyCorsIndex(resolvedConfigPath),
+  ]);
   const places = new Map<string, ImportSourceRecord>();
 
   for (const row of rows) {
@@ -660,12 +715,14 @@ const loadFlemishSubmunicipalities = async (legacyConfigPath?: string): Promise<
         continue;
       }
 
+      const corsMatch = corsBySlug.get(slug);
+
       places.set(slug, {
         name,
         slug,
-        postalCode: null,
-        latitude: null,
-        longitude: null,
+        postalCode: corsMatch?.postalCode ?? null,
+        latitude: corsMatch?.latitude ?? null,
+        longitude: corsMatch?.longitude ?? null,
         boundaryGeojson: null,
         provinceName,
         regionName: 'Vlaanderen',
@@ -978,13 +1035,31 @@ export const importBelgianCities = async (
       : parseSourcePayload(await fetchPayload(resolvedSource))
           .map((item) => normalizeSourceItem(item))
           .filter((item): item is ImportSourceRecord => item !== null);
+  const corsBySlug =
+    resolvedSource === DEFAULT_SOURCE
+      ? await loadLegacyCorsIndex(options.legacyConfigPath)
+      : new Map<string, { postalCode: string | null; latitude: number | null; longitude: number | null }>();
   const submunicipalityItems =
     resolvedSource === DEFAULT_SOURCE
       ? await loadFlemishSubmunicipalities(options.legacyConfigPath)
       : [];
+  const enrichedItems = normalizedItems.map((item) => {
+    const corsMatch = corsBySlug.get(item.slug);
+
+    if (!corsMatch) {
+      return item;
+    }
+
+    return {
+      ...item,
+      postalCode: item.postalCode ?? corsMatch.postalCode,
+      latitude: item.latitude ?? corsMatch.latitude,
+      longitude: item.longitude ?? corsMatch.longitude,
+    };
+  });
   const mergedItems = Array.from(
     new Map(
-      [...normalizedItems, ...submunicipalityItems].map((item) => [item.slug, item])
+      [...enrichedItems, ...submunicipalityItems].map((item) => [item.slug, item])
     ).values()
   );
   const limitedItems =
