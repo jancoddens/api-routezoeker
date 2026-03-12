@@ -11,6 +11,7 @@ const parseArgs = () => {
     dryRun: false,
     locale: undefined,
     limit: undefined,
+    legacyConfigPath: undefined,
   };
 
   for (let index = 0; index < rawArgs.length; index += 1) {
@@ -39,6 +40,12 @@ const parseArgs = () => {
       continue;
     }
 
+    if (arg === '--legacy-config') {
+      options.legacyConfigPath = rawArgs[index + 1];
+      index += 1;
+      continue;
+    }
+
     if (!options.source) {
       options.source = arg;
       continue;
@@ -63,6 +70,7 @@ const run = async () => {
       dryRun: options.dryRun,
       locale: options.locale,
       limit: options.limit,
+      legacyConfigPath: options.legacyConfigPath,
     });
 
     console.log(JSON.stringify({ ok: true, ...result }, null, 2));

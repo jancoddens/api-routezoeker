@@ -1,5 +1,11 @@
 import type { Core } from '@strapi/strapi';
 import * as turf from '@turf/turf';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 type JsonRecord = Record<string, unknown>;
 
@@ -12,6 +18,7 @@ type ImportOptions = {
   locale?: string;
   dryRun?: boolean;
   limit?: number;
+  legacyConfigPath?: string;
 };
 
 type ImportSourceRecord = {
@@ -50,6 +57,10 @@ const DEFAULT_DICTIONARY_URL =
   'https://raw.githubusercontent.com/mathiasleroy/belgium-geographic-data/master/dist/metadata/be-dictionary.csv';
 const DEFAULT_POSTAL_CODE_POINTS_URL =
   'https://raw.githubusercontent.com/mathiasleroy/belgium-geographic-data/master/dist/points/postal-codes.WGS84.js';
+const DEFAULT_LEGACY_CONFIG_CANDIDATES = [
+  path.join(process.cwd(), 'legacy-import', 'config.php'),
+  path.join(process.cwd(), '..', 'legacy-import', 'config.php'),
+];
 
 const BELGIUM_COUNTRY_ALIASES = ['belgie', 'belgium', 'belgique', 'belgien'];
 
@@ -61,6 +72,22 @@ type BuiltinMunicipalityRecord = {
   regionName: string | null;
   latitude: number | null;
   longitude: number | null;
+};
+
+type LegacyDbConfig = {
+  host: string;
+  user: string;
+  password: string;
+  database: string;
+  port?: number;
+};
+
+type LegacySubmunicipalityRow = {
+  Hoofdgemeente?: string | null;
+  Deelgemeente?: string | null;
+  Subgemeente?: string | null;
+  Provincie?: string | null;
+  Land?: string | null;
 };
 
 const REGION_DEFINITIONS = [
@@ -521,6 +548,134 @@ const parsePostalCodePoints = (raw: string) => {
   return points;
 };
 
+const parsePhpConfig = async (configPath: string): Promise<LegacyDbConfig> => {
+  const raw = await fs.readFile(configPath, 'utf8');
+  const extract = (variable: string) =>
+    raw.match(new RegExp(`\\$${variable}\\s*=\\s*'([^']*)'`, 'i'))?.[1] ?? null;
+
+  const host = extract('dbhost');
+  const user = extract('dbuser');
+  const password = extract('dbpass');
+  const database = extract('dbname');
+
+  if (!host || !user || password === null || !database) {
+    throw new Error(`Could not parse database credentials from ${configPath}`);
+  }
+
+  return { host, user, password, database };
+};
+
+const buildMysqlJsonSelect = (table: string, columns: string[], whereClause: string) => {
+  const jsonPairs = columns.map((column) => `'${column}', ${column}`).join(', ');
+
+  return [`SELECT JSON_OBJECT(${jsonPairs})`, `FROM ${table}`, whereClause ? `WHERE ${whereClause}` : '']
+    .filter(Boolean)
+    .join(' ');
+};
+
+const runMysqlQuery = async (config: LegacyDbConfig, sql: string) => {
+  const args = [
+    '--batch',
+    '--raw',
+    '--skip-column-names',
+    '-h',
+    config.host,
+    '-u',
+    config.user,
+    '-D',
+    config.database,
+    '-e',
+    sql,
+  ];
+
+  if (config.port) {
+    args.splice(6, 0, '-P', String(config.port));
+  }
+
+  const { stdout } = await execFileAsync('mysql', args, {
+    env: {
+      ...process.env,
+      MYSQL_PWD: config.password,
+    },
+    maxBuffer: 1024 * 1024 * 20,
+  });
+
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+};
+
+const resolveLegacyConfigPath = async (explicitPath?: string) => {
+  if (explicitPath) {
+    return explicitPath;
+  }
+
+  for (const candidate of DEFAULT_LEGACY_CONFIG_CANDIDATES) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+};
+
+const loadFlemishSubmunicipalities = async (legacyConfigPath?: string): Promise<ImportSourceRecord[]> => {
+  const resolvedConfigPath = await resolveLegacyConfigPath(legacyConfigPath);
+
+  if (!resolvedConfigPath) {
+    return [];
+  }
+
+  const config = await parsePhpConfig(resolvedConfigPath);
+  const rows = (await runMysqlQuery(
+    config,
+    buildMysqlJsonSelect(
+      'Deelgemeenten',
+      ['Hoofdgemeente', 'Deelgemeente', 'Subgemeente', 'Provincie', 'Land'],
+      "Land = 'Vlaanderen'"
+    )
+  )) as LegacySubmunicipalityRow[];
+  const places = new Map<string, ImportSourceRecord>();
+
+  for (const row of rows) {
+    const provinceName = toStringValue(row.Provincie);
+    const hoofdgemeente = toStringValue(row.Hoofdgemeente);
+    const names = [toStringValue(row.Deelgemeente), toStringValue(row.Subgemeente)].filter(
+      (value): value is string => Boolean(value)
+    );
+
+    for (const name of names) {
+      if (name === hoofdgemeente) {
+        continue;
+      }
+
+      const slug = slugify(name);
+
+      if (places.has(slug)) {
+        continue;
+      }
+
+      places.set(slug, {
+        name,
+        slug,
+        postalCode: null,
+        latitude: null,
+        longitude: null,
+        boundaryGeojson: null,
+        provinceName,
+        regionName: 'Vlaanderen',
+      });
+    }
+  }
+
+  return Array.from(places.values());
+};
+
 const loadBuiltinMunicipalities = async (): Promise<ImportSourceRecord[]> => {
   const [dictionaryRaw, postalPointsRaw] = await Promise.all([
     fetchText(DEFAULT_DICTIONARY_URL),
@@ -823,8 +978,17 @@ export const importBelgianCities = async (
       : parseSourcePayload(await fetchPayload(resolvedSource))
           .map((item) => normalizeSourceItem(item))
           .filter((item): item is ImportSourceRecord => item !== null);
+  const submunicipalityItems =
+    resolvedSource === DEFAULT_SOURCE
+      ? await loadFlemishSubmunicipalities(options.legacyConfigPath)
+      : [];
+  const mergedItems = Array.from(
+    new Map(
+      [...normalizedItems, ...submunicipalityItems].map((item) => [item.slug, item])
+    ).values()
+  );
   const limitedItems =
-    options.limit && options.limit > 0 ? normalizedItems.slice(0, options.limit) : normalizedItems;
+    options.limit && options.limit > 0 ? mergedItems.slice(0, options.limit) : mergedItems;
 
   const [countries, existingRegions, existingProvinces] = await Promise.all([
     listEntities(strapi, 'api::country.country', options.locale),
@@ -850,7 +1014,7 @@ export const importBelgianCities = async (
 
   let created = 0;
   let updated = 0;
-  let skipped = normalizedItems.length - limitedItems.length;
+  let skipped = mergedItems.length - limitedItems.length;
 
   for (const item of limitedItems) {
     const regionSlug = normalizeRegionSlug(item.regionName);
