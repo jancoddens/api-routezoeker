@@ -4,7 +4,7 @@ export default {
    * Recalculate route popularity every Monday at 02:00
    */
 
-  "* * * * *": async ({ strapi }) => {
+  "0 2 * * 1": async ({ strapi }) => {
 
     const routes = await strapi.entityService.findMany(
       "api::route.route",
@@ -18,7 +18,7 @@ export default {
         ],
         limit: 10000
       }
-    );
+    ); 
 
     for (const route of routes) {
 
