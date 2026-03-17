@@ -25,14 +25,12 @@
       "required": true
     },
     "slug": {
-      "type": "uid",
+      "type": "string",
       "pluginOptions": {
         "i18n": {
           "localized": true
         }
-      },
-      "targetField": "",
-      "required": true
+      }
     },
     "postal_code": {
       "type": "string",

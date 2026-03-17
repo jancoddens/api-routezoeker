@@ -294,7 +294,9 @@ const findOneBySlugOrName = async (
     limit: 1,
   });
 
-  return Array.isArray(entries) ? (entries[0] as EntityReference | undefined) : undefined;
+  return Array.isArray(entries)
+    ? ((entries[0] as unknown) as EntityReference | undefined)
+    : undefined;
 };
 
 const listEntities = async (

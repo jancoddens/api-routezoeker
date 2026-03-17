@@ -203,7 +203,6 @@ const syncFeaturedCityLocationThemePage = async (
 
   try {
     const city = await strapi.entityService.findOne('api::city.city', cityId, {
-      fields: ['id', 'name', 'slug', 'featured', 'locale'],
       populate: {
         country: {
           fields: ['id'],

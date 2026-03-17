@@ -486,7 +486,7 @@ const ensureNamedEntity = async (
     return existing ?? { id: 0, name, slug };
   }
 
-  return (await strapi.entityService.create(uid, {
+  return ((await strapi.entityService.create(uid, {
     data: {
       name,
       slug,
@@ -494,7 +494,7 @@ const ensureNamedEntity = async (
       ...extraData,
     } as never,
     locale,
-  })) as EntityReference;
+  })) as unknown) as EntityReference;
 };
 
 const uploadLocalFile = async (
