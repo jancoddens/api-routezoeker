@@ -15,7 +15,8 @@
       "default": "list",
       "enum": [
         "list",
-        "map"
+        "map",
+        "ol"
       ]
     }
   },

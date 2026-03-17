@@ -169,7 +169,7 @@ export interface PageBlocksList extends Struct.ComponentSchema {
   };
   attributes: {
     active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
-    type: Schema.Attribute.Enumeration<['list', 'map']> &
+    type: Schema.Attribute.Enumeration<['list', 'map', 'ol']> &
       Schema.Attribute.DefaultTo<'list'>;
   };
 }
