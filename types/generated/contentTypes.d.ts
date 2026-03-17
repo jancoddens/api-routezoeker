@@ -730,7 +730,7 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     region: Schema.Attribute.Relation<'manyToOne', 'api::region.region'>;
     routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
-    slug: Schema.Attribute.String &
+    slug: Schema.Attribute.UID &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -898,7 +898,7 @@ export interface ApiLocationThemePageLocationThemePage
           localized: true;
         };
       }>;
-    slug: Schema.Attribute.UID &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
