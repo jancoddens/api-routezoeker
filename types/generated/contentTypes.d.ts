@@ -1426,6 +1426,12 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    route_nodes: Schema.Attribute.Component<'route.route-nodes', true> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     route_start_locations: Schema.Attribute.Component<
       'route.route-start-location',
       true

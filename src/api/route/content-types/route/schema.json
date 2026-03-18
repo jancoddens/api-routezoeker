@@ -307,6 +307,16 @@
           "localized": true
         }
       }
+    },
+    "route_nodes": {
+      "type": "component",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "component": "route.route-nodes",
+      "repeatable": true
     }
   }
 }
