@@ -377,6 +377,47 @@ const parseDurationMinutes = (value: unknown) => {
   return Math.round(numeric);
 };
 
+const parseRouteNodes = (nodesValue: string | null, distancesValue: string | null) => {
+  if (!nodesValue) {
+    return [];
+  }
+
+  const nodeNumbers = Array.from(nodesValue.matchAll(/\d+[A-Za-z]?/g), (match) => match[0].trim()).filter(Boolean);
+
+  if (nodeNumbers.length === 0) {
+    return [];
+  }
+
+  const rawDistances = Array.from(
+    (distancesValue ?? '').matchAll(/\d+(?:[.,]\d+)?/g),
+    (match) => Number.parseFloat(match[0].replace(',', '.'))
+  ).filter((value) => Number.isFinite(value));
+
+  const segmentDistances =
+    rawDistances.length === nodeNumbers.length
+      ? rawDistances.map((distance, index) => (index === 0 ? 0 : distance))
+      : rawDistances.length === nodeNumbers.length - 1
+        ? [0, ...rawDistances]
+        : rawDistances.length === 1 && nodeNumbers.length > 1
+          ? [0, ...Array.from({ length: nodeNumbers.length - 1 }, () => rawDistances[0] / (nodeNumbers.length - 1))]
+          : Array.from({ length: nodeNumbers.length }, (_, index) => (index === 0 ? 0 : 0));
+
+  let cumulativeDistanceKm = 0;
+
+  return nodeNumbers.map((nodeNumber, index) => {
+    const segmentDistanceKm = index === 0 ? 0 : segmentDistances[index] ?? 0;
+    cumulativeDistanceKm += index === 0 ? 0 : segmentDistanceKm;
+
+    return {
+      node_number: nodeNumber,
+      label: nodeNumber,
+      order: index + 1,
+      segment_distance_km: Math.round(segmentDistanceKm * 100) / 100,
+      cumulative_distance_km: Math.round(cumulativeDistanceKm * 100) / 100,
+    };
+  });
+};
+
 const parsePhpConfig = async (configPath: string): Promise<LegacyDbConfig> => {
   const raw = await fs.readFile(configPath, 'utf8');
   const extract = (variable: string) =>
@@ -1051,6 +1092,10 @@ export const importLegacyWalks = async (
 
     const description = toStringValue(walk.Korte_omschrijving);
     const blocksDescription = description ? htmlToBlocks(description) : null;
+    const routeNodes = parseRouteNodes(
+      toStringValue(walk.Knooppunten),
+      toStringValue(walk.Knooppunten_afstand)
+    );
     const routeData = {
       title,
       slug,
@@ -1068,6 +1113,7 @@ export const importLegacyWalks = async (
       route_type: routeType?.id ? [routeType.id] : undefined,
       tags: tags.length > 0 ? { connect: tags } : undefined,
       route_start_locations: dedupeStartLocations(startLocations),
+      route_nodes: routeNodes,
       route_end_location: toStringValue(walk.Eind_plaats)
         ? [
             {
