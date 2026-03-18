@@ -397,20 +397,25 @@ const parseRouteNodes = (
     (match) => Number.parseFloat(match[0].replace(',', '.'))
   ).filter((value) => Number.isFinite(value));
 
-  const segmentDistances =
+  const cumulativeDistances =
     rawDistances.length === nodeNumbers.length
-      ? rawDistances.map((distance, index) => (index === 0 ? 0 : distance))
+      ? rawDistances
       : rawDistances.length === nodeNumbers.length - 1
-        ? [0, ...rawDistances]
+        ? rawDistances.reduce<number[]>((accumulator, distance, index) => {
+            const previous = index === 0 ? 0 : accumulator[index];
+            accumulator.push(previous + distance);
+            return accumulator;
+          }, [0])
         : rawDistances.length === 1 && nodeNumbers.length > 1
-          ? [0, ...Array.from({ length: nodeNumbers.length - 1 }, () => rawDistances[0] / (nodeNumbers.length - 1))]
-          : Array.from({ length: nodeNumbers.length }, (_, index) => (index === 0 ? 0 : 0));
-
-  let cumulativeDistanceKm = 0;
+          ? Array.from({ length: nodeNumbers.length }, (_, index) =>
+              index === 0 ? 0 : (rawDistances[0] / (nodeNumbers.length - 1)) * index
+            )
+          : Array.from({ length: nodeNumbers.length }, () => 0);
 
   return nodeNumbers.map((nodeNumber, index) => {
-    const segmentDistanceKm = index === 0 ? 0 : segmentDistances[index] ?? 0;
-    cumulativeDistanceKm += index === 0 ? 0 : segmentDistanceKm;
+    const cumulativeDistanceKm = cumulativeDistances[index] ?? 0;
+    const previousCumulativeDistanceKm = index === 0 ? 0 : cumulativeDistances[index - 1] ?? 0;
+    const segmentDistanceKm = index === 0 ? 0 : cumulativeDistanceKm - previousCumulativeDistanceKm;
     const coordinates = coordinatesByNodeNumber.get(nodeNumber) ?? null;
 
     return {
