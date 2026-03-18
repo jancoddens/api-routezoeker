@@ -425,9 +425,29 @@ const parseRouteNodes = (
   });
 };
 
+const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
+const distanceBetweenCoordinatesKm = (
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number }
+) => {
+  const earthRadiusKm = 6371;
+  const deltaLat = toRadians(b.latitude - a.latitude);
+  const deltaLon = toRadians(b.longitude - a.longitude);
+  const lat1 = toRadians(a.latitude);
+  const lat2 = toRadians(b.latitude);
+
+  const haversine =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+};
+
 const findNodeCoordinatesByNumber = async (
   strapi: Core.Strapi,
   nodeNumbers: string[],
+  startCoordinate?: { latitude: number; longitude: number } | null,
   provinceId?: number | null,
   countryId?: number | null
 ) => {
@@ -477,7 +497,10 @@ const findNodeCoordinatesByNumber = async (
     });
   }
 
-  const coordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+  const candidatesByNodeNumber = new Map<
+    string,
+    Array<{ latitude: number; longitude: number }>
+  >();
 
   for (const candidate of candidates) {
     const nodeNumber = toStringValue(candidate.number);
@@ -486,14 +509,40 @@ const findNodeCoordinatesByNumber = async (
     const longitude =
       typeof candidate.longitude === 'number' ? candidate.longitude : toNumberValue(candidate.longitude);
 
-    if (!nodeNumber || latitude === null || longitude === null || coordinatesByNodeNumber.has(nodeNumber)) {
+    if (!nodeNumber || latitude === null || longitude === null) {
       continue;
     }
 
-    coordinatesByNodeNumber.set(nodeNumber, {
+    const existing = candidatesByNodeNumber.get(nodeNumber) ?? [];
+
+    existing.push({
       latitude: Math.round(latitude * 1_000_000) / 1_000_000,
       longitude: Math.round(longitude * 1_000_000) / 1_000_000,
     });
+    candidatesByNodeNumber.set(nodeNumber, existing);
+  }
+
+  const coordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+
+  for (const [nodeNumber, nodeCandidates] of candidatesByNodeNumber) {
+    if (nodeCandidates.length === 1 || !startCoordinate) {
+      coordinatesByNodeNumber.set(nodeNumber, nodeCandidates[0]);
+      continue;
+    }
+
+    let bestCandidate = nodeCandidates[0];
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const candidate of nodeCandidates) {
+      const distance = distanceBetweenCoordinatesKm(startCoordinate, candidate);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestCandidate = candidate;
+      }
+    }
+
+    coordinatesByNodeNumber.set(nodeNumber, bestCandidate);
   }
 
   return coordinatesByNodeNumber;
@@ -579,6 +628,40 @@ const runMysqlQuery = async (config: LegacyDbConfig, sql: string) => {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line) as Record<string, unknown>);
+};
+
+const runMysqlRawRows = async (config: LegacyDbConfig, sql: string) => {
+  const args = [
+    '--batch',
+    '--raw',
+    '--skip-column-names',
+    '-h',
+    config.host,
+    '-u',
+    config.user,
+    '-D',
+    config.database,
+    '-e',
+    sql,
+  ];
+
+  if (config.port) {
+    args.splice(6, 0, '-P', String(config.port));
+  }
+
+  const { stdout } = await execFileAsync('mysql', args, {
+    env: {
+      ...process.env,
+      MYSQL_PWD: config.password,
+    },
+    maxBuffer: 1024 * 1024 * 20,
+  });
+
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.split('\t'));
 };
 
 const findOneBySlugOrName = async (
@@ -846,6 +929,119 @@ const resolveLegacyFile = async (root: string, folder: string, fileName: string 
   return null;
 };
 
+const readGpxWaypointCoordinates = async (absolutePath: string | null) => {
+  if (!absolutePath) {
+    return new Map<string, { latitude: number; longitude: number }>();
+  }
+
+  const xml = await fs.readFile(absolutePath, 'utf8');
+  const matches = xml.matchAll(/<wpt\b([^>]*)>([\s\S]*?)<\/wpt>/gi);
+  const coordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+
+  for (const [, attrs, inner] of matches) {
+    const latitudeMatch = attrs.match(/\blat=["']([^"']+)["']/i);
+    const longitudeMatch = attrs.match(/\blon=["']([^"']+)["']/i);
+    const nameMatch = inner.match(/<name\b[^>]*>([\s\S]*?)<\/name>/i);
+    const nodeNumber = toStringValue(decodeHtmlEntities(nameMatch?.[1] ?? ''));
+    const latitude = toNumberValue(latitudeMatch?.[1]);
+    const longitude = toNumberValue(longitudeMatch?.[1]);
+
+    if (!nodeNumber || latitude === null || longitude === null || coordinatesByNodeNumber.has(nodeNumber)) {
+      continue;
+    }
+
+    coordinatesByNodeNumber.set(nodeNumber, {
+      latitude: Math.round(latitude * 1_000_000) / 1_000_000,
+      longitude: Math.round(longitude * 1_000_000) / 1_000_000,
+    });
+  }
+
+  return coordinatesByNodeNumber;
+};
+
+const getExistingTableColumns = async (config: LegacyDbConfig, tableName: string) => {
+  try {
+    const rows = await runMysqlRawRows(config, `SHOW COLUMNS FROM ${tableName}`);
+    return rows.map((row) => row[0]).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const pickExistingColumn = (columns: string[], candidates: string[]) => {
+  const existingColumns = new Map(columns.map((column) => [column.toLowerCase(), column]));
+
+  for (const candidate of candidates) {
+    const match = existingColumns.get(candidate.toLowerCase());
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+};
+
+const findLegacyWalkNodeCoordinates = async (config: LegacyDbConfig, walkId: number) => {
+  const tableName = 'Wandeling_knooppunten';
+  const columns = await getExistingTableColumns(config, tableName);
+
+  if (columns.length === 0) {
+    return new Map<string, { latitude: number; longitude: number }>();
+  }
+
+  const walkIdColumn = pickExistingColumn(columns, ['Wid', 'wid', 'wandeling_id', 'walk_id', 'route_id']);
+  const nodeNumberColumn = pickExistingColumn(columns, ['Knooppunt', 'knooppunt', 'node_number', 'number', 'nr']);
+  const latitudeColumn = pickExistingColumn(columns, ['Latitude', 'latitude', 'lat', 'Cor1', 'y']);
+  const longitudeColumn = pickExistingColumn(columns, ['Longitude', 'longitude', 'lng', 'lon', 'Cor2', 'x']);
+  const orderColumn = pickExistingColumn(columns, ['Volgorde', 'volgorde', 'order', 'position', 'positie']);
+
+  if (!walkIdColumn || !nodeNumberColumn || !latitudeColumn || !longitudeColumn) {
+    return new Map<string, { latitude: number; longitude: number }>();
+  }
+
+  const selectedColumns = [walkIdColumn, nodeNumberColumn, latitudeColumn, longitudeColumn];
+
+  if (orderColumn) {
+    selectedColumns.push(orderColumn);
+  }
+
+  try {
+    const rows = (await runMysqlQuery(
+      config,
+      buildJsonSelect(
+        tableName,
+        selectedColumns,
+        `${walkIdColumn} = ${Number(walkId)}`,
+        undefined,
+        undefined,
+        orderColumn ? `${orderColumn} ASC` : undefined
+      )
+    )) as Array<Record<string, unknown>>;
+
+    const coordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+
+    for (const row of rows) {
+      const nodeNumber = toStringValue(row[nodeNumberColumn]);
+      const latitude = toNumberValue(row[latitudeColumn]);
+      const longitude = toNumberValue(row[longitudeColumn]);
+
+      if (!nodeNumber || latitude === null || longitude === null || coordinatesByNodeNumber.has(nodeNumber)) {
+        continue;
+      }
+
+      coordinatesByNodeNumber.set(nodeNumber, {
+        latitude: Math.round(latitude * 1_000_000) / 1_000_000,
+        longitude: Math.round(longitude * 1_000_000) / 1_000_000,
+      });
+    }
+
+    return coordinatesByNodeNumber;
+  } catch {
+    return new Map<string, { latitude: number; longitude: number }>();
+  }
+};
+
 const normalizeLocationName = (value: unknown) => slugify(toStringValue(value) ?? '');
 
 const roundCoordinate = (value: unknown) => {
@@ -1077,6 +1273,7 @@ export const importLegacyWalks = async (
     const imagePath = await resolveLegacyFile(options.legacyRoot, 'images/wandelingen', walk.Afbeelding_large);
     const pdfPath = await resolveLegacyFile(options.legacyRoot, 'pdf', walk.PDF);
     const primaryGpxPath = await resolveLegacyFile(options.legacyRoot, 'gpx', walk.GPX);
+    const additionalGpxRows = gpxByWalkId.get(Number(walk.ID)) ?? [];
     const coverImage = imagePath
       ? await uploadLocalFile(
           strapi,
@@ -1108,7 +1305,7 @@ export const importLegacyWalks = async (
       read_out_gpx: false,
     });
 
-    for (const gpxRow of gpxByWalkId.get(Number(walk.ID)) ?? []) {
+    for (const gpxRow of additionalGpxRows) {
       const gpxRowName = toStringValue(gpxRow.GPX);
 
       if (primaryGpxBaseName && gpxRowName && path.basename(gpxRowName).toLowerCase() === primaryGpxBaseName) {
@@ -1186,13 +1383,54 @@ export const importLegacyWalks = async (
       (rawKnooppunten ?? '').matchAll(/\d+[A-Za-z]?/g),
       (match) => match[0].trim()
     ).filter(Boolean);
-    const coordinatesByNodeNumber = await findNodeCoordinatesByNumber(
+    const startCoordinate = {
+      latitude: toNumberValue(walk.Cor1),
+      longitude: toNumberValue(walk.Cor2),
+    };
+    const nodeTableCoordinatesByNodeNumber = await findNodeCoordinatesByNumber(
       strapi,
       parsedNodeNumbers,
+      startCoordinate.latitude !== null && startCoordinate.longitude !== null ? startCoordinate : null,
       province?.id ?? null,
       country?.id ?? null
     );
-    const routeNodes = parseRouteNodes(rawKnooppunten, rawKnooppuntenAfstand, coordinatesByNodeNumber);
+    const gpxCoordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+    const gpxPathsForNodeMatching = [primaryGpxPath];
+
+    for (const gpxRow of additionalGpxRows) {
+      const gpxPath = await resolveLegacyFile(options.legacyRoot, 'gpx', gpxRow.GPX);
+
+      if (gpxPath) {
+        gpxPathsForNodeMatching.push(gpxPath);
+      }
+    }
+
+    for (const gpxPath of Array.from(new Set(gpxPathsForNodeMatching.filter(Boolean)))) {
+      const gpxCoordinates = await readGpxWaypointCoordinates(gpxPath);
+
+      for (const [nodeNumber, coordinates] of gpxCoordinates) {
+        if (!gpxCoordinatesByNodeNumber.has(nodeNumber)) {
+          gpxCoordinatesByNodeNumber.set(nodeNumber, coordinates);
+        }
+      }
+    }
+
+    const legacyTableCoordinatesByNodeNumber = await findLegacyWalkNodeCoordinates(config, Number(walk.ID));
+    const mergedCoordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+
+    for (const nodeNumber of parsedNodeNumbers) {
+      const coordinates =
+        gpxCoordinatesByNodeNumber.get(nodeNumber) ??
+        legacyTableCoordinatesByNodeNumber.get(nodeNumber) ??
+        nodeTableCoordinatesByNodeNumber.get(nodeNumber) ??
+        null;
+
+      if (coordinates) {
+        mergedCoordinatesByNodeNumber.set(nodeNumber, coordinates);
+      }
+    }
+
+    const routeNodes = parseRouteNodes(rawKnooppunten, rawKnooppuntenAfstand, mergedCoordinatesByNodeNumber);
     const routeData = {
       title,
       slug,
