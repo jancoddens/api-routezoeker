@@ -1015,6 +1015,7 @@ export const importLegacyWalks = async (
     const primaryStartLocationGpx = primaryGpxPath
       ? await uploadLocalFile(strapi, primaryGpxPath, path.basename(primaryGpxPath), 'gpx', null, null, options.dryRun)
       : null;
+    const primaryGpxBaseName = primaryGpxPath ? path.basename(primaryGpxPath).toLowerCase() : null;
 
     startLocations.push({
       name: toStringValue(walk.Start_plaats) ?? undefined,
@@ -1027,6 +1028,12 @@ export const importLegacyWalks = async (
     });
 
     for (const gpxRow of gpxByWalkId.get(Number(walk.ID)) ?? []) {
+      const gpxRowName = toStringValue(gpxRow.GPX);
+
+      if (primaryGpxBaseName && gpxRowName && path.basename(gpxRowName).toLowerCase() === primaryGpxBaseName) {
+        continue;
+      }
+
       const gpxStartCityName = toStringValue(gpxRow.Start_gemeente) ?? startCityName;
       const gpxStartCity =
         gpxStartCityName && gpxStartCityName !== startCityName
