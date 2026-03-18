@@ -8,6 +8,16 @@ import type { Core } from '@strapi/strapi';
 
 const execFileAsync = promisify(execFile);
 
+const formatCopyrightCaption = (copyright?: string | null) => {
+  const normalized = copyright?.trim();
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  return normalized.startsWith('©') ? normalized : `© ${normalized}`;
+};
+
 type LegacyDbConfig = {
   host: string;
   user: string;
@@ -170,15 +180,74 @@ const decodeHtmlEntities = (value: string) =>
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>');
 
-const htmlToPlainText = (value: string) =>
-  normalizeWhitespace(
-    decodeHtmlEntities(
-      value
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/p>/gi, '\n\n')
-        .replace(/<[^>]+>/g, ' ')
-    )
-  );
+const stripHtmlTags = (value: string) => normalizeWhitespace(decodeHtmlEntities(value.replace(/<[^>]+>/g, ' ')));
+
+const normalizeHref = (href: string) => decodeHtmlEntities(href.trim());
+
+const getLinkTarget = (href: string) => (/^https?:\/\//i.test(href) ? '_blank' : '_self');
+
+const getLinkRel = (href: string) => (/^https?:\/\//i.test(href) ? 'noopener noreferrer' : '');
+
+const htmlInlineToChildren = (value: string) => {
+  const children: Array<Record<string, unknown>> = [];
+  const linkPattern = /<a\b[^>]*href=(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi;
+  let lastIndex = 0;
+
+  for (const match of value.matchAll(linkPattern)) {
+    const index = match.index ?? 0;
+    const before = stripHtmlTags(value.slice(lastIndex, index));
+
+    if (before) {
+      children.push({
+        type: 'text',
+        text: before,
+      });
+    }
+
+    const href = normalizeHref(match[2] ?? '');
+    const linkText = stripHtmlTags(match[3] ?? '');
+
+    if (href && linkText) {
+      children.push({
+        type: 'link',
+        url: href,
+        target: getLinkTarget(href),
+        rel: getLinkRel(href),
+        children: [
+          {
+            type: 'text',
+            text: linkText,
+          },
+        ],
+      });
+    } else if (linkText) {
+      children.push({
+        type: 'text',
+        text: linkText,
+      });
+    }
+
+    lastIndex = index + match[0].length;
+  }
+
+  const after = stripHtmlTags(value.slice(lastIndex));
+
+  if (after) {
+    children.push({
+      type: 'text',
+      text: after,
+    });
+  }
+
+  return children.length > 0
+    ? children
+    : [
+        {
+          type: 'text',
+          text: '',
+        },
+      ];
+};
 
 const toStringValue = (value: unknown) => {
   if (value === undefined || value === null) {
@@ -216,19 +285,17 @@ const toBooleanValue = (value: unknown) => {
   return ['1', 'true', 'yes', 'ja', 'y'].includes(normalized);
 };
 
-const toBlocks = (text: string) =>
-  text
+const htmlToBlocks = (value: string) =>
+  value
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<p[^>]*>/gi, '')
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
     .map((paragraph) => ({
       type: 'paragraph',
-      children: [
-        {
-          type: 'text',
-          text: paragraph,
-        },
-      ],
+      children: htmlInlineToChildren(paragraph),
     }));
 
 const mapDifficulty = (value: unknown) => {
@@ -510,6 +577,7 @@ const uploadLocalFile = async (
     return null;
   }
 
+  const caption = formatCopyrightCaption(copyright);
   const stats = await fs.stat(absolutePath);
   const normalizedSize = Math.round((stats.size / 1024) * 1000) / 1000;
   const folder = folderName
@@ -540,10 +608,12 @@ const uploadLocalFile = async (
   if (existing) {
     if (
       (alternativeText && existing.alternativeText !== alternativeText) ||
-      (copyright && existing.copyright !== copyright)
+      (copyright && existing.copyright !== copyright) ||
+      (caption && existing.caption !== caption)
     ) {
       await strapi.plugin('upload').service('upload').updateFileInfo(existing.id, {
         alternativeText,
+        caption,
         folder: folder?.id,
       });
       if (copyright) {
@@ -561,6 +631,7 @@ const uploadLocalFile = async (
       fileInfo: {
         folder: folder?.id,
         alternativeText: alternativeText ?? undefined,
+        caption,
       },
     },
     files: {
@@ -579,6 +650,10 @@ const uploadLocalFile = async (
       data: { copyright },
     });
     uploadedFile.copyright = copyright;
+  }
+
+  if (uploadedFile && caption) {
+    uploadedFile.caption = caption;
   }
 
   return uploadedFile;
@@ -862,9 +937,15 @@ export const importLegacyWalks = async (
         )
       : null;
     const tagNames = mapLegacyTypeTags(routeTypeName);
+
+    if (toStringValue(walk.Knooppunten)) {
+      tagNames.push('Knooppunten');
+    }
+
+    const uniqueTagNames = Array.from(new Set(tagNames));
     const tags = [];
 
-    for (const tagName of tagNames) {
+    for (const tagName of uniqueTagNames) {
       const tag = await ensureNamedEntity(strapi, 'api::tag.tag', tagName, {}, options.locale, options.dryRun);
       if (tag?.id) {
         tags.push(tag.id);
@@ -944,7 +1025,7 @@ export const importLegacyWalks = async (
           markingImagePath,
           path.basename(markingImagePath),
           'signs',
-          null,
+          `routebord ${title}`,
           null,
           options.dryRun
         )
@@ -969,11 +1050,11 @@ export const importLegacyWalks = async (
     }
 
     const description = toStringValue(walk.Korte_omschrijving);
-    const plainDescription = description ? htmlToPlainText(description) : null;
+    const blocksDescription = description ? htmlToBlocks(description) : null;
     const routeData = {
       title,
       slug,
-      description: plainDescription ? toBlocks(plainDescription) : undefined,
+      description: blocksDescription && blocksDescription.length > 0 ? blocksDescription : undefined,
       difficulty: mapDifficulty(walk.Moeilijkheid),
       wheelchair_accessible: toBooleanValue(walk.Rolstoel),
       dog_friendly: toBooleanValue(walk.Hond),

@@ -251,8 +251,13 @@ export interface RouteRouteNodes extends Struct.ComponentSchema {
     displayName: 'route_nodes';
   };
   attributes: {
-    node: Schema.Attribute.Relation<'oneToOne', 'api::node.node'>;
+    cumulative_distance_km: Schema.Attribute.Decimal;
+    label: Schema.Attribute.String;
+    latitude: Schema.Attribute.Decimal;
+    longitude: Schema.Attribute.Decimal;
+    node_number: Schema.Attribute.String;
     order: Schema.Attribute.Integer;
+    segment_distance_km: Schema.Attribute.Decimal;
   };
 }
 

@@ -5,13 +5,26 @@
   },
   "options": {},
   "attributes": {
-    "node": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::node.node"
+    "node_number": {
+      "type": "string"
     },
     "order": {
       "type": "integer"
+    },
+    "segment_distance_km": {
+      "type": "decimal"
+    },
+    "cumulative_distance_km": {
+      "type": "decimal"
+    },
+    "label": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "decimal"
+    },
+    "longitude": {
+      "type": "decimal"
     }
   },
   "config": {}
