@@ -377,7 +377,11 @@ const parseDurationMinutes = (value: unknown) => {
   return Math.round(numeric);
 };
 
-const parseRouteNodes = (nodesValue: string | null, distancesValue: string | null) => {
+const parseRouteNodes = (
+  nodesValue: string | null,
+  distancesValue: string | null,
+  coordinatesByNodeNumber: Map<string, { latitude: number; longitude: number }>
+) => {
   if (!nodesValue) {
     return [];
   }
@@ -407,6 +411,7 @@ const parseRouteNodes = (nodesValue: string | null, distancesValue: string | nul
   return nodeNumbers.map((nodeNumber, index) => {
     const segmentDistanceKm = index === 0 ? 0 : segmentDistances[index] ?? 0;
     cumulativeDistanceKm += index === 0 ? 0 : segmentDistanceKm;
+    const coordinates = coordinatesByNodeNumber.get(nodeNumber) ?? null;
 
     return {
       node_number: nodeNumber,
@@ -414,8 +419,84 @@ const parseRouteNodes = (nodesValue: string | null, distancesValue: string | nul
       order: index + 1,
       segment_distance_km: Math.round(segmentDistanceKm * 100) / 100,
       cumulative_distance_km: Math.round(cumulativeDistanceKm * 100) / 100,
+      latitude: coordinates?.latitude ?? null,
+      longitude: coordinates?.longitude ?? null,
     };
   });
+};
+
+const findNodeCoordinatesByNumber = async (
+  strapi: Core.Strapi,
+  nodeNumbers: string[],
+  provinceId?: number | null,
+  countryId?: number | null
+) => {
+  if (nodeNumbers.length === 0) {
+    return new Map<string, { latitude: number; longitude: number }>();
+  }
+
+  const uniqueNodeNumbers = Array.from(new Set(nodeNumbers));
+
+  const findCandidates = async (filters: Record<string, unknown>) =>
+    (await strapi.entityService.findMany('api::node.node', {
+      filters,
+      fields: ['number', 'latitude', 'longitude'],
+      publicationState: 'preview',
+      limit: uniqueNodeNumbers.length * 10,
+    })) as Array<{
+      number?: string | null;
+      latitude?: number | string | null;
+      longitude?: number | string | null;
+    }>;
+
+  let candidates = await findCandidates({
+    number: {
+      $in: uniqueNodeNumbers,
+    },
+    ...(provinceId
+      ? {
+          province: {
+            id: provinceId,
+          },
+        }
+      : {}),
+    ...(countryId
+      ? {
+          country: {
+            id: countryId,
+          },
+        }
+      : {}),
+  });
+
+  if (candidates.length === 0) {
+    candidates = await findCandidates({
+      number: {
+        $in: uniqueNodeNumbers,
+      },
+    });
+  }
+
+  const coordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+
+  for (const candidate of candidates) {
+    const nodeNumber = toStringValue(candidate.number);
+    const latitude =
+      typeof candidate.latitude === 'number' ? candidate.latitude : toNumberValue(candidate.latitude);
+    const longitude =
+      typeof candidate.longitude === 'number' ? candidate.longitude : toNumberValue(candidate.longitude);
+
+    if (!nodeNumber || latitude === null || longitude === null || coordinatesByNodeNumber.has(nodeNumber)) {
+      continue;
+    }
+
+    coordinatesByNodeNumber.set(nodeNumber, {
+      latitude: Math.round(latitude * 1_000_000) / 1_000_000,
+      longitude: Math.round(longitude * 1_000_000) / 1_000_000,
+    });
+  }
+
+  return coordinatesByNodeNumber;
 };
 
 const parsePhpConfig = async (configPath: string): Promise<LegacyDbConfig> => {
@@ -1099,10 +1180,19 @@ export const importLegacyWalks = async (
 
     const description = toStringValue(walk.Korte_omschrijving);
     const blocksDescription = description ? htmlToBlocks(description) : null;
-    const routeNodes = parseRouteNodes(
-      toStringValue(walk.Knooppunten),
-      toStringValue(walk.Knooppunten_afstand)
+    const rawKnooppunten = toStringValue(walk.Knooppunten);
+    const rawKnooppuntenAfstand = toStringValue(walk.Knooppunten_afstand);
+    const parsedNodeNumbers = Array.from(
+      (rawKnooppunten ?? '').matchAll(/\d+[A-Za-z]?/g),
+      (match) => match[0].trim()
+    ).filter(Boolean);
+    const coordinatesByNodeNumber = await findNodeCoordinatesByNumber(
+      strapi,
+      parsedNodeNumbers,
+      province?.id ?? null,
+      country?.id ?? null
     );
+    const routeNodes = parseRouteNodes(rawKnooppunten, rawKnooppuntenAfstand, coordinatesByNodeNumber);
     const routeData = {
       title,
       slug,
@@ -1111,7 +1201,7 @@ export const importLegacyWalks = async (
       wheelchair_accessible: toBooleanValue(walk.Rolstoel),
       dog_friendly: toBooleanValue(walk.Hond),
       stroller_friendly: toBooleanValue(walk.Buggy),
-      waymarked: routeMarkings.length > 0 || toStringValue(walk.Knooppunten) !== null,
+      waymarked: routeMarkings.length > 0 || rawKnooppunten !== null,
       countries: country?.id ? { connect: [country.id] } : undefined,
       provinces: province?.id ? { connect: [province.id] } : undefined,
       cities: city?.id ? { connect: [city.id] } : undefined,
@@ -1132,8 +1222,8 @@ export const importLegacyWalks = async (
       cover_image: coverImage?.id ?? null,
       pdf: pdfFile?.id ?? null,
       route_by: toStringValue(walk.Aangeboden) ?? undefined,
-      knooppunten: toStringValue(walk.Knooppunten) ?? undefined,
-      knooppunten_afstand: toStringValue(walk.Knooppunten_afstand) ?? undefined,
+      knooppunten: rawKnooppunten ?? undefined,
+      knooppunten_afstand: rawKnooppuntenAfstand ?? undefined,
       seo:
         toStringValue(walk.Meta_title) || toStringValue(walk.Meta_description)
           ? {
