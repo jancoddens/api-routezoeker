@@ -1140,12 +1140,14 @@ const buildSequentialRouteNodeCoordinates = (
       continue;
     }
 
-    const candidates = (dbCandidatesByNodeNumber.get(nodeNumber) ?? []).filter(
+    const allCandidates = dbCandidatesByNodeNumber.get(nodeNumber) ?? [];
+    const candidatesNearRoute = allCandidates.filter(
       (candidate) =>
         routeCoordinates.length === 0 ||
         !Number.isFinite(candidate.routeDistanceMeters) ||
         candidate.routeDistanceMeters <= MAX_NODE_DISTANCE_FROM_ROUTE_METERS
     );
+    const candidates = candidatesNearRoute.length > 0 ? candidatesNearRoute : allCandidates;
 
     if (candidates.length === 0) {
       matchedCoordinates.push(null);
