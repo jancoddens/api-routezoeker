@@ -18,6 +18,27 @@ const formatCopyrightCaption = (copyright?: string | null) => {
   return normalized.startsWith('©') ? normalized : `© ${normalized}`;
 };
 
+const sanitizeUploadFilename = (value: string) => {
+  const normalized = path.basename(value).normalize('NFC');
+  const originalExtension = path.extname(normalized);
+  const sanitizedExtension = originalExtension.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '');
+  const baseName = path.basename(normalized, originalExtension);
+  const sanitizedBaseName = baseName
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const reservedWindowsName = /^(con|prn|aux|nul|com\d|lpt\d)$/i;
+  const safeBaseName =
+    sanitizedBaseName && sanitizedBaseName !== '.' && sanitizedBaseName !== '..'
+      ? reservedWindowsName.test(sanitizedBaseName)
+        ? `${sanitizedBaseName}-file`
+        : sanitizedBaseName
+      : 'file';
+  const maxBaseLength = Math.max(1, 255 - sanitizedExtension.length);
+
+  return `${safeBaseName.slice(0, maxBaseLength)}${sanitizedExtension}` || 'file';
+};
+
 type LegacyDbConfig = {
   host: string;
   user: string;
@@ -787,6 +808,8 @@ const uploadLocalFile = async (
     return null;
   }
 
+  const sanitizedMediaName = sanitizeUploadFilename(mediaName);
+  const sanitizedOriginalFilename = sanitizeUploadFilename(path.basename(absolutePath));
   const caption = formatCopyrightCaption(copyright);
   const stats = await fs.stat(absolutePath);
   const normalizedSize = Math.round((stats.size / 1024) * 1000) / 1000;
@@ -799,7 +822,7 @@ const uploadLocalFile = async (
     : null;
   const existingCandidates = (await strapi.db.query('plugin::upload.file').findMany({
     where: {
-      name: mediaName,
+      name: sanitizedMediaName,
     },
     populate: {
       folder: true,
@@ -846,7 +869,7 @@ const uploadLocalFile = async (
     },
     files: {
       filepath: absolutePath,
-      originalFilename: path.basename(absolutePath),
+      originalFilename: sanitizedOriginalFilename,
       mimetype: mime.lookup(absolutePath) || 'application/octet-stream',
       size: stats.size,
     },
