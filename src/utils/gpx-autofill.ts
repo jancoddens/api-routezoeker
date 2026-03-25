@@ -44,6 +44,17 @@ type RouteWaypoint = {
   [key: string]: unknown;
 };
 
+type RouteNode = {
+  node_number?: string | null;
+  label?: string | null;
+  order?: number | null;
+  segment_distance_km?: number | null;
+  cumulative_distance_km?: number | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  [key: string]: unknown;
+};
+
 type RouteEntity = {
   id: number;
   title?: string | null;
@@ -52,7 +63,7 @@ type RouteEntity = {
   route_start_locations?: RouteStartLocation[] | null;
   route_end_location?: RouteEndLocation[] | null;
   route_waypoints?: RouteWaypoint[] | null;
-  route_nodes?: Array<{ node?: { id?: number | null } | null; order?: number | null }> | null;
+  route_nodes?: RouteNode[] | null;
 };
 
 type GpxPoint = {
@@ -280,6 +291,12 @@ type CandidateNode = {
   longitude: number;
 };
 
+type MatchedRouteNode = {
+  number: string | null;
+  latitude: number;
+  longitude: number;
+};
+
 const parseRelationId = (value: unknown) => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -321,6 +338,32 @@ const buildRouteBounds = (parsed: ParsedGpx) => {
     minLatitude,
     maxLatitude,
   };
+};
+
+const buildRouteNodes = (nodes: MatchedRouteNode[]): RouteNode[] => {
+  let cumulativeDistanceKm = 0;
+
+  return nodes.map((node, index) => {
+    const previousNode = index > 0 ? nodes[index - 1] : null;
+    const segmentDistanceKm = previousNode
+      ? distanceBetweenCoordinatePairsMeters(
+          { latitude: previousNode.latitude, longitude: previousNode.longitude },
+          { latitude: node.latitude, longitude: node.longitude }
+        ) / 1000
+      : 0;
+
+    cumulativeDistanceKm += segmentDistanceKm;
+
+    return {
+      node_number: node.number,
+      label: node.number,
+      order: index + 1,
+      segment_distance_km: round(segmentDistanceKm, 2),
+      cumulative_distance_km: round(cumulativeDistanceKm, 2),
+      latitude: round(node.latitude, 6),
+      longitude: round(node.longitude, 6),
+    };
+  });
 };
 
 const findMatchedRouteNodes = async (
@@ -391,7 +434,7 @@ const findMatchedRouteNodes = async (
     })
     .filter((candidate): candidate is CandidateNode => candidate !== null);
 
-  const matchedNodes: Array<{ node: number; order: number }> = [];
+  const matchedNodes: MatchedRouteNode[] = [];
   const lastSeenTrackIndexByNodeId = new Map<number, number>();
 
   for (let trackIndex = 0; trackIndex < parsed.routeGeometry.coordinates.length; trackIndex += 1) {
@@ -420,7 +463,12 @@ const findMatchedRouteNodes = async (
     const previousMatch = matchedNodes[matchedNodes.length - 1];
     const lastSeenTrackIndex = lastSeenTrackIndexByNodeId.get(nearestNode.id);
 
-    if (previousMatch?.node === nearestNode.id) {
+    if (
+      previousMatch &&
+      previousMatch.number === nearestNode.number &&
+      previousMatch.latitude === nearestNode.latitude &&
+      previousMatch.longitude === nearestNode.longitude
+    ) {
       continue;
     }
 
@@ -429,13 +477,14 @@ const findMatchedRouteNodes = async (
     }
 
     matchedNodes.push({
-      node: nearestNode.id,
-      order: matchedNodes.length + 1,
+      number: nearestNode.number,
+      latitude: nearestNode.latitude,
+      longitude: nearestNode.longitude,
     });
     lastSeenTrackIndexByNodeId.set(nearestNode.id, trackIndex);
   }
 
-  return matchedNodes;
+  return buildRouteNodes(matchedNodes);
 };
 
 const findRouteNodesFromWaypoints = async (
@@ -499,7 +548,7 @@ const findRouteNodesFromWaypoints = async (
     candidatesByNumber.set(number, existing);
   }
 
-  const routeNodes: Array<{ node: number; order: number }> = [];
+  const routeNodes: MatchedRouteNode[] = [];
 
   for (const waypoint of parsed.waypoints) {
     const number = asText(waypoint.title);
@@ -509,10 +558,6 @@ const findRouteNodesFromWaypoints = async (
     }
 
     const candidatesForNumber = candidatesByNumber.get(number) ?? [];
-
-    if (candidatesForNumber.length === 0) {
-      continue;
-    }
 
     const waypointCoordinate = {
       latitude: Number(waypoint.latitude),
@@ -531,23 +576,31 @@ const findRouteNodesFromWaypoints = async (
       }
     }
 
-    if (!nearestCandidate) {
-      continue;
-    }
-
+    const matchedLatitude = nearestCandidate
+      ? nearestCandidate.latitude
+      : Number(waypoint.latitude);
+    const matchedLongitude = nearestCandidate
+      ? nearestCandidate.longitude
+      : Number(waypoint.longitude);
     const previousMatch = routeNodes[routeNodes.length - 1];
 
-    if (previousMatch?.node === nearestCandidate.id) {
+    if (
+      previousMatch &&
+      previousMatch.number === number &&
+      previousMatch.latitude === matchedLatitude &&
+      previousMatch.longitude === matchedLongitude
+    ) {
       continue;
     }
 
     routeNodes.push({
-      node: nearestCandidate.id,
-      order: routeNodes.length + 1,
+      number,
+      latitude: matchedLatitude,
+      longitude: matchedLongitude,
     });
   }
 
-  return routeNodes;
+  return buildRouteNodes(routeNodes);
 };
 
 const distanceBetweenPointsKm = (from: GpxPoint, to: GpxPoint) => {

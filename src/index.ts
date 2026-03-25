@@ -86,6 +86,7 @@ const syncRouteFromGpx = async (
         },
       },
       route_waypoints: true,
+      route_nodes: true,
     },
   });
 
