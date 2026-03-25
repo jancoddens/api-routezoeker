@@ -148,6 +148,10 @@ type ImportSummary = {
 
 const MAX_NODE_DISTANCE_FROM_ROUTE_METERS = 250;
 
+type LegacyWalkNode = Coordinate & {
+  nodeNumber: string;
+};
+
 const WALK_QUERY_COLUMNS = [
   'ID',
   'Titel',
@@ -1239,12 +1243,12 @@ const pickExistingColumn = (columns: string[], candidates: string[]) => {
   return null;
 };
 
-const findLegacyWalkNodeCoordinates = async (config: LegacyDbConfig, walkId: number) => {
+const findLegacyWalkNodes = async (config: LegacyDbConfig, walkId: number) => {
   const tableName = 'Wandeling_knooppunten';
   const columns = await getExistingTableColumns(config, tableName);
 
   if (columns.length === 0) {
-    return new Map<string, { latitude: number; longitude: number }>();
+    return [] as LegacyWalkNode[];
   }
 
   const walkIdColumn = pickExistingColumn(columns, ['Wid', 'wid', 'wandeling_id', 'walk_id', 'route_id']);
@@ -1254,7 +1258,7 @@ const findLegacyWalkNodeCoordinates = async (config: LegacyDbConfig, walkId: num
   const orderColumn = pickExistingColumn(columns, ['Volgorde', 'volgorde', 'order', 'position', 'positie']);
 
   if (!walkIdColumn || !nodeNumberColumn || !latitudeColumn || !longitudeColumn) {
-    return new Map<string, { latitude: number; longitude: number }>();
+    return [] as LegacyWalkNode[];
   }
 
   const selectedColumns = [walkIdColumn, nodeNumberColumn, latitudeColumn, longitudeColumn];
@@ -1276,26 +1280,27 @@ const findLegacyWalkNodeCoordinates = async (config: LegacyDbConfig, walkId: num
       )
     )) as Array<Record<string, unknown>>;
 
-    const coordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+    const nodes: LegacyWalkNode[] = [];
 
     for (const row of rows) {
       const nodeNumber = toStringValue(row[nodeNumberColumn]);
       const latitude = toNumberValue(row[latitudeColumn]);
       const longitude = toNumberValue(row[longitudeColumn]);
 
-      if (!nodeNumber || latitude === null || longitude === null || coordinatesByNodeNumber.has(nodeNumber)) {
+      if (!nodeNumber || latitude === null || longitude === null) {
         continue;
       }
 
-      coordinatesByNodeNumber.set(nodeNumber, {
+      nodes.push({
+        nodeNumber,
         latitude: Math.round(latitude * 1_000_000) / 1_000_000,
         longitude: Math.round(longitude * 1_000_000) / 1_000_000,
       });
     }
 
-    return coordinatesByNodeNumber;
+    return nodes;
   } catch {
-    return new Map<string, { latitude: number; longitude: number }>();
+    return [] as LegacyWalkNode[];
   }
 };
 
@@ -1654,7 +1659,7 @@ export const importLegacyWalks = async (
     const blocksDescription = description ? htmlToBlocks(description) : null;
     const rawKnooppunten = toStringValue(walk.Knooppunten);
     const rawKnooppuntenAfstand = toStringValue(walk.Knooppunten_afstand);
-    const parsedNodeNumbers = Array.from(
+    const parsedNodeNumbersFromText = Array.from(
       (rawKnooppunten ?? '').matchAll(/\d+[A-Za-z]?/g),
       (match) => match[0].trim()
     ).filter(Boolean);
@@ -1687,6 +1692,9 @@ export const importLegacyWalks = async (
       gpxRouteCoordinates.push(...gpxRoutePoints);
     }
 
+    const legacyTableNodes = await findLegacyWalkNodes(config, Number(walk.ID));
+    const parsedNodeNumbers =
+      legacyTableNodes.length > 0 ? legacyTableNodes.map((node) => node.nodeNumber) : parsedNodeNumbersFromText;
     const nodeTableCoordinatesByNodeNumber = await findNodeCoordinatesByNumber(
       strapi,
       parsedNodeNumbers,
@@ -1695,8 +1703,17 @@ export const importLegacyWalks = async (
       country?.id ?? null,
       gpxRouteCoordinates
     );
+    const legacyTableCoordinatesByNodeNumber = new Map<string, Coordinate>();
 
-    const legacyTableCoordinatesByNodeNumber = await findLegacyWalkNodeCoordinates(config, Number(walk.ID));
+    for (const legacyTableNode of legacyTableNodes) {
+      if (!legacyTableCoordinatesByNodeNumber.has(legacyTableNode.nodeNumber)) {
+        legacyTableCoordinatesByNodeNumber.set(legacyTableNode.nodeNumber, {
+          latitude: legacyTableNode.latitude,
+          longitude: legacyTableNode.longitude,
+        });
+      }
+    }
+
     const matchedNodeCoordinates = buildSequentialRouteNodeCoordinates(
       parsedNodeNumbers,
       startCoordinate.latitude !== null && startCoordinate.longitude !== null ? startCoordinate : null,
@@ -1706,7 +1723,9 @@ export const importLegacyWalks = async (
       nodeTableCoordinatesByNodeNumber
     );
 
-    const routeNodes = parseRouteNodes(rawKnooppunten, rawKnooppuntenAfstand, matchedNodeCoordinates);
+    const effectiveKnooppunten =
+      legacyTableNodes.length > 0 ? parsedNodeNumbers.join(' ') : rawKnooppunten;
+    const routeNodes = parseRouteNodes(effectiveKnooppunten, rawKnooppuntenAfstand, matchedNodeCoordinates);
     const routeData = stripUndefinedDeep({
       title,
       slug,
@@ -1715,7 +1734,7 @@ export const importLegacyWalks = async (
       wheelchair_accessible: toBooleanValue(walk.Rolstoel),
       dog_friendly: toBooleanValue(walk.Hond),
       stroller_friendly: toBooleanValue(walk.Buggy),
-      waymarked: routeMarkings.length > 0 || rawKnooppunten !== null,
+      waymarked: routeMarkings.length > 0 || effectiveKnooppunten !== null,
       countries: country?.id ? { connect: [country.id] } : undefined,
       provinces: province?.id ? { connect: [province.id] } : undefined,
       cities: city?.id ? { connect: [city.id] } : undefined,
@@ -1736,7 +1755,7 @@ export const importLegacyWalks = async (
       cover_image: coverImage?.id ?? null,
       pdf: pdfFile?.id ?? null,
       route_by: toStringValue(walk.Aangeboden) ?? undefined,
-      knooppunten: rawKnooppunten ?? undefined,
+      knooppunten: effectiveKnooppunten ?? undefined,
       knooppunten_afstand: rawKnooppuntenAfstand ?? undefined,
       seo:
         toStringValue(walk.Meta_title) || toStringValue(walk.Meta_description)
