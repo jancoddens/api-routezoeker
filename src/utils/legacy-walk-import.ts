@@ -146,6 +146,8 @@ type ImportSummary = {
   skipped: number;
 };
 
+const MAX_NODE_DISTANCE_FROM_ROUTE_METERS = 250;
+
 const WALK_QUERY_COLUMNS = [
   'ID',
   'Titel',
@@ -406,7 +408,7 @@ const parseDurationMinutes = (value: unknown) => {
 const parseRouteNodes = (
   nodesValue: string | null,
   distancesValue: string | null,
-  coordinatesByNodeNumber: Map<string, { latitude: number; longitude: number }>
+  coordinatesByNodeIndex: Array<Coordinate | null>
 ) => {
   if (!nodesValue) {
     return [];
@@ -442,7 +444,7 @@ const parseRouteNodes = (
     const cumulativeDistanceKm = cumulativeDistances[index] ?? 0;
     const previousCumulativeDistanceKm = index === 0 ? 0 : cumulativeDistances[index - 1] ?? 0;
     const segmentDistanceKm = index === 0 ? 0 : cumulativeDistanceKm - previousCumulativeDistanceKm;
-    const coordinates = coordinatesByNodeNumber.get(nodeNumber) ?? null;
+    const coordinates = coordinatesByNodeIndex[index] ?? null;
 
     return {
       node_number: nodeNumber,
@@ -521,6 +523,30 @@ const distanceToRouteMeters = (candidate: Coordinate, routeCoordinates: Coordina
   return nearestDistance;
 };
 
+const getNearestRoutePointMatch = (candidate: Coordinate, routeCoordinates: Coordinate[]) => {
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  let nearestIndex = -1;
+
+  for (let index = 0; index < routeCoordinates.length; index += 1) {
+    const distance = distanceBetweenCoordinatesMeters(candidate, routeCoordinates[index]);
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  }
+
+  return {
+    routeDistanceMeters: nearestDistance,
+    routeIndex: nearestIndex,
+  };
+};
+
+type RouteNodeCandidate = Coordinate & {
+  routeDistanceMeters: number;
+  routeIndex: number;
+};
+
 const findNodeCoordinatesByNumber = async (
   strapi: Core.Strapi,
   nodeNumbers: string[],
@@ -530,7 +556,7 @@ const findNodeCoordinatesByNumber = async (
   routeCoordinates: Coordinate[] = []
 ) => {
   if (nodeNumbers.length === 0) {
-    return new Map<string, Coordinate>();
+    return new Map<string, RouteNodeCandidate[]>();
   }
 
   const uniqueNodeNumbers = Array.from(new Set(nodeNumbers));
@@ -605,7 +631,7 @@ const findNodeCoordinatesByNumber = async (
     });
   }
 
-  const candidatesByNodeNumber = new Map<string, Coordinate[]>();
+  const candidatesByNodeNumber = new Map<string, RouteNodeCandidate[]>();
 
   for (const candidate of candidates) {
     const nodeNumber = toStringValue(candidate.number);
@@ -620,45 +646,24 @@ const findNodeCoordinatesByNumber = async (
 
     const existing = candidatesByNodeNumber.get(nodeNumber) ?? [];
 
+    const routeMatch = getNearestRoutePointMatch(
+      {
+        latitude: Math.round(latitude * 1_000_000) / 1_000_000,
+        longitude: Math.round(longitude * 1_000_000) / 1_000_000,
+      },
+      routeCoordinates
+    );
+
     existing.push({
       latitude: Math.round(latitude * 1_000_000) / 1_000_000,
       longitude: Math.round(longitude * 1_000_000) / 1_000_000,
+      routeDistanceMeters: routeMatch.routeDistanceMeters,
+      routeIndex: routeMatch.routeIndex,
     });
     candidatesByNodeNumber.set(nodeNumber, existing);
   }
 
-  const coordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
-
-  for (const [nodeNumber, nodeCandidates] of candidatesByNodeNumber) {
-    if (nodeCandidates.length === 1 || !startCoordinate) {
-      coordinatesByNodeNumber.set(nodeNumber, nodeCandidates[0]);
-      continue;
-    }
-
-    let bestCandidate = nodeCandidates[0];
-    let bestRouteDistance = Number.POSITIVE_INFINITY;
-    let bestStartDistance = Number.POSITIVE_INFINITY;
-
-    for (const candidate of nodeCandidates) {
-      const routeDistance = distanceToRouteMeters(candidate, routeCoordinates);
-      const startDistance = startCoordinate
-        ? distanceBetweenCoordinatesKm(startCoordinate, candidate)
-        : Number.POSITIVE_INFINITY;
-
-      if (
-        routeDistance < bestRouteDistance ||
-        (routeDistance === bestRouteDistance && startDistance < bestStartDistance)
-      ) {
-        bestRouteDistance = routeDistance;
-        bestStartDistance = startDistance;
-        bestCandidate = candidate;
-      }
-    }
-
-    coordinatesByNodeNumber.set(nodeNumber, bestCandidate);
-  }
-
-  return coordinatesByNodeNumber;
+  return candidatesByNodeNumber;
 };
 
 const parsePhpConfig = async (configPath: string): Promise<LegacyDbConfig> => {
@@ -1100,6 +1105,113 @@ const readGpxRouteCoordinates = async (absolutePath: string | null) => {
   }
 
   return coordinates;
+};
+
+const buildSequentialRouteNodeCoordinates = (
+  nodeNumbers: string[],
+  startCoordinate: Coordinate | null,
+  routeCoordinates: Coordinate[],
+  gpxCoordinatesByNodeNumber: Map<string, Coordinate>,
+  legacyTableCoordinatesByNodeNumber: Map<string, Coordinate>,
+  dbCandidatesByNodeNumber: Map<string, RouteNodeCandidate[]>
+) => {
+  const matchedCoordinates: Array<Coordinate | null> = [];
+  let previousCoordinate = startCoordinate;
+  let previousRouteIndex = 0;
+  const routeIndexTolerance = 5;
+
+  for (let index = 0; index < nodeNumbers.length; index += 1) {
+    const nodeNumber = nodeNumbers[index];
+    const directCoordinate =
+      gpxCoordinatesByNodeNumber.get(nodeNumber) ?? legacyTableCoordinatesByNodeNumber.get(nodeNumber) ?? null;
+
+    if (directCoordinate) {
+      matchedCoordinates.push(directCoordinate);
+
+      if (routeCoordinates.length > 0) {
+        const directRouteMatch = getNearestRoutePointMatch(directCoordinate, routeCoordinates);
+
+        if (directRouteMatch.routeIndex >= 0) {
+          previousRouteIndex = directRouteMatch.routeIndex;
+        }
+      }
+
+      previousCoordinate = directCoordinate;
+      continue;
+    }
+
+    const candidates = (dbCandidatesByNodeNumber.get(nodeNumber) ?? []).filter(
+      (candidate) =>
+        routeCoordinates.length === 0 ||
+        !Number.isFinite(candidate.routeDistanceMeters) ||
+        candidate.routeDistanceMeters <= MAX_NODE_DISTANCE_FROM_ROUTE_METERS
+    );
+
+    if (candidates.length === 0) {
+      matchedCoordinates.push(null);
+      continue;
+    }
+
+    const candidatePool =
+      routeCoordinates.length > 0
+        ? candidates.filter((candidate) => candidate.routeIndex >= previousRouteIndex - routeIndexTolerance)
+        : candidates;
+    const scopedCandidates = candidatePool.length > 0 ? candidatePool : candidates;
+
+    const sortedCandidates = [...scopedCandidates].sort((a, b) => {
+      if (index === 0) {
+        const aStartDistance = startCoordinate
+          ? distanceBetweenCoordinatesMeters(startCoordinate, a)
+          : Number.POSITIVE_INFINITY;
+        const bStartDistance = startCoordinate
+          ? distanceBetweenCoordinatesMeters(startCoordinate, b)
+          : Number.POSITIVE_INFINITY;
+
+        if (aStartDistance !== bStartDistance) {
+          return aStartDistance - bStartDistance;
+        }
+
+        if (routeCoordinates.length > 0 && a.routeIndex !== b.routeIndex) {
+          return a.routeIndex - b.routeIndex;
+        }
+
+        return a.routeDistanceMeters - b.routeDistanceMeters;
+      }
+
+      const aPreviousDistance = previousCoordinate
+        ? distanceBetweenCoordinatesMeters(previousCoordinate, a)
+        : Number.POSITIVE_INFINITY;
+      const bPreviousDistance = previousCoordinate
+        ? distanceBetweenCoordinatesMeters(previousCoordinate, b)
+        : Number.POSITIVE_INFINITY;
+
+      if (aPreviousDistance !== bPreviousDistance) {
+        return aPreviousDistance - bPreviousDistance;
+      }
+
+      if (routeCoordinates.length > 0 && a.routeIndex !== b.routeIndex) {
+        return a.routeIndex - b.routeIndex;
+      }
+
+      return a.routeDistanceMeters - b.routeDistanceMeters;
+    });
+
+    const bestCandidate = sortedCandidates[0] ?? null;
+
+    if (!bestCandidate) {
+      matchedCoordinates.push(null);
+      continue;
+    }
+
+    matchedCoordinates.push(bestCandidate);
+    previousCoordinate = bestCandidate;
+
+    if (routeCoordinates.length > 0 && bestCandidate.routeIndex >= 0) {
+      previousRouteIndex = bestCandidate.routeIndex;
+    }
+  }
+
+  return matchedCoordinates;
 };
 
 const getExistingTableColumns = async (config: LegacyDbConfig, tableName: string) => {
@@ -1583,21 +1695,16 @@ export const importLegacyWalks = async (
     );
 
     const legacyTableCoordinatesByNodeNumber = await findLegacyWalkNodeCoordinates(config, Number(walk.ID));
-    const mergedCoordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+    const matchedNodeCoordinates = buildSequentialRouteNodeCoordinates(
+      parsedNodeNumbers,
+      startCoordinate.latitude !== null && startCoordinate.longitude !== null ? startCoordinate : null,
+      gpxRouteCoordinates,
+      gpxCoordinatesByNodeNumber,
+      legacyTableCoordinatesByNodeNumber,
+      nodeTableCoordinatesByNodeNumber
+    );
 
-    for (const nodeNumber of parsedNodeNumbers) {
-      const coordinates =
-        gpxCoordinatesByNodeNumber.get(nodeNumber) ??
-        legacyTableCoordinatesByNodeNumber.get(nodeNumber) ??
-        nodeTableCoordinatesByNodeNumber.get(nodeNumber) ??
-        null;
-
-      if (coordinates) {
-        mergedCoordinatesByNodeNumber.set(nodeNumber, coordinates);
-      }
-    }
-
-    const routeNodes = parseRouteNodes(rawKnooppunten, rawKnooppuntenAfstand, mergedCoordinatesByNodeNumber);
+    const routeNodes = parseRouteNodes(rawKnooppunten, rawKnooppuntenAfstand, matchedNodeCoordinates);
     const routeData = stripUndefinedDeep({
       title,
       slug,
