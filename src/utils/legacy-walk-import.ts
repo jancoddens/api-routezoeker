@@ -911,6 +911,27 @@ const findOneBySlugOrName = async (
   return Array.isArray(entries) ? ((entries[0] as unknown) as EntityReference | undefined) : undefined;
 };
 
+const isUniqueConstraintError = (error: unknown) =>
+  Boolean(error && typeof error === 'object' && (error as { name?: string }).name === 'YupValidationError') &&
+  Array.isArray((error as { details?: { errors?: Array<{ message?: string }> } }).details?.errors) &&
+  ((error as { details?: { errors?: Array<{ message?: string }> } }).details?.errors ?? []).some((entry) =>
+    String(entry?.message ?? '').toLowerCase().includes('unique')
+  );
+
+const findOneBySlugOrNameRelaxed = async (
+  strapi: Core.Strapi,
+  uid:
+    | 'api::country.country'
+    | 'api::province.province'
+    | 'api::region.region'
+    | 'api::city.city'
+    | 'api::tag.tag'
+    | 'api::route-type.route-type',
+  slug: string,
+  name: string,
+  locale?: string
+) => findOneBySlugOrName(strapi, uid, slug, name, {}, locale);
+
 const ensureThemeEntity = async (
   strapi: Core.Strapi,
   title: string,
@@ -962,15 +983,34 @@ const ensureNamedEntity = async (
     return existing ?? { id: 0, name, slug };
   }
 
-  return ((await strapi.entityService.create(uid, {
-    data: {
-      name,
-      slug,
-      publishedAt: new Date().toISOString(),
-      ...extraData,
-    } as never,
-    locale,
-  })) as unknown) as EntityReference;
+  try {
+    return ((await strapi.entityService.create(uid, {
+      data: {
+        name,
+        slug,
+        publishedAt: new Date().toISOString(),
+        ...extraData,
+      } as never,
+      locale,
+    })) as unknown) as EntityReference;
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      const relaxedMatch = await findOneBySlugOrNameRelaxed(strapi, uid, slug, name, locale);
+
+      if (relaxedMatch) {
+        strapi.log.warn(
+          `[legacy-walk-import] Reused existing ${uid} after unique collision for name="${name}" slug="${slug}"`
+        );
+        return relaxedMatch;
+      }
+
+      strapi.log.error(
+        `[legacy-walk-import] Unique collision creating ${uid} name="${name}" slug="${slug}" extra=${JSON.stringify(extraData)}`
+      );
+    }
+
+    throw error;
+  }
 };
 
 const uploadLocalFile = async (
