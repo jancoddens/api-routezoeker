@@ -9,7 +9,7 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Server =>
   },
 
   cron: {
-    enabled: true,
+    enabled: false,
   },
 
 });
