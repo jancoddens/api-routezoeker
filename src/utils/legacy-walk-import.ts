@@ -1054,6 +1054,24 @@ const roundCoordinate = (value: unknown) => {
   return numeric === null ? null : Number(numeric.toFixed(5));
 };
 
+const stripUndefinedDeep = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is NonNullable<typeof item> => item !== undefined)
+      .map((item) => stripUndefinedDeep(item)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entryValue]) => entryValue !== undefined)
+        .map(([key, entryValue]) => [key, stripUndefinedDeep(entryValue)])
+    ) as T;
+  }
+
+  return value;
+};
+
 const dedupeStartLocations = (locations: Array<Record<string, unknown>>) => {
   const merged = new Map<string, Record<string, unknown>>();
 
@@ -1436,7 +1454,7 @@ export const importLegacyWalks = async (
     }
 
     const routeNodes = parseRouteNodes(rawKnooppunten, rawKnooppuntenAfstand, mergedCoordinatesByNodeNumber);
-    const routeData = {
+    const routeData = stripUndefinedDeep({
       title,
       slug,
       description: blocksDescription && blocksDescription.length > 0 ? blocksDescription : undefined,
@@ -1475,7 +1493,7 @@ export const importLegacyWalks = async (
             }
           : undefined,
       publishedAt: new Date().toISOString(),
-    };
+    });
 
     const existingRoute = await findExistingRoute(strapi, slug, title, options.locale);
 
