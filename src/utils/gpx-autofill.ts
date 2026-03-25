@@ -59,6 +59,8 @@ type RouteEntity = {
   id: number;
   title?: string | null;
   excerpt?: string | null;
+  knooppunten?: string | null;
+  knooppunten_afstand?: string | null;
   route_geometry?: unknown;
   route_start_locations?: RouteStartLocation[] | null;
   route_end_location?: RouteEndLocation[] | null;
@@ -340,19 +342,70 @@ const buildRouteBounds = (parsed: ParsedGpx) => {
   };
 };
 
-const buildRouteNodes = (nodes: MatchedRouteNode[]): RouteNode[] => {
+const parseNodeSequence = (nodesValue: string | null | undefined, distancesValue: string | null | undefined) => {
+  const nodeNumbers = Array.from(
+    (nodesValue ?? '').matchAll(/\d+[A-Za-z]?/g),
+    (match) => match[0].trim()
+  ).filter(Boolean);
+
+  if (nodeNumbers.length === 0) {
+    return {
+      nodeNumbers,
+      cumulativeDistances: [] as number[],
+    };
+  }
+
+  const rawDistances = Array.from(
+    (distancesValue ?? '').matchAll(/\d+(?:[.,]\d+)?/g),
+    (match) => Number.parseFloat(match[0].replace(',', '.'))
+  ).filter((value) => Number.isFinite(value));
+
+  const cumulativeDistances =
+    rawDistances.length === nodeNumbers.length
+      ? rawDistances
+      : rawDistances.length === nodeNumbers.length - 1
+        ? rawDistances.reduce<number[]>((accumulator, distance, index) => {
+            const previous = index === 0 ? 0 : accumulator[index];
+            accumulator.push(previous + distance);
+            return accumulator;
+          }, [0])
+        : rawDistances.length === 1 && nodeNumbers.length > 1
+          ? Array.from({ length: nodeNumbers.length }, (_, index) =>
+              index === 0 ? 0 : (rawDistances[0] / (nodeNumbers.length - 1)) * index
+            )
+          : [];
+
+  return {
+    nodeNumbers,
+    cumulativeDistances,
+  };
+};
+
+const buildRouteNodes = (
+  nodes: MatchedRouteNode[],
+  cumulativeDistancesFromRoute?: number[]
+): RouteNode[] => {
   let cumulativeDistanceKm = 0;
 
   return nodes.map((node, index) => {
     const previousNode = index > 0 ? nodes[index - 1] : null;
-    const segmentDistanceKm = previousNode
-      ? distanceBetweenCoordinatePairsMeters(
-          { latitude: previousNode.latitude, longitude: previousNode.longitude },
-          { latitude: node.latitude, longitude: node.longitude }
-        ) / 1000
-      : 0;
+    const cumulativeDistanceFromRoute = cumulativeDistancesFromRoute?.[index];
+    const previousCumulativeDistanceFromRoute =
+      index > 0 ? cumulativeDistancesFromRoute?.[index - 1] : 0;
+    const segmentDistanceKm =
+      typeof cumulativeDistanceFromRoute === 'number'
+        ? Math.max(0, cumulativeDistanceFromRoute - (previousCumulativeDistanceFromRoute ?? 0))
+        : previousNode
+          ? distanceBetweenCoordinatePairsMeters(
+              { latitude: previousNode.latitude, longitude: previousNode.longitude },
+              { latitude: node.latitude, longitude: node.longitude }
+            ) / 1000
+          : 0;
 
-    cumulativeDistanceKm += segmentDistanceKm;
+    cumulativeDistanceKm =
+      typeof cumulativeDistanceFromRoute === 'number'
+        ? cumulativeDistanceFromRoute
+        : cumulativeDistanceKm + segmentDistanceKm;
 
     return {
       node_number: node.number,
@@ -371,6 +424,7 @@ const findMatchedRouteNodes = async (
   route: RouteEntity,
   parsed: ParsedGpx
 ) => {
+  const { nodeNumbers, cumulativeDistances } = parseNodeSequence(route.knooppunten, route.knooppunten_afstand);
   const { provinceId, countryId } = extractRouteAreaFilter(route);
   const bounds = buildRouteBounds(parsed);
   const boundsPadding = 0.01;
@@ -484,7 +538,10 @@ const findMatchedRouteNodes = async (
     lastSeenTrackIndexByNodeId.set(nearestNode.id, trackIndex);
   }
 
-  return buildRouteNodes(matchedNodes);
+  const routeCumulativeDistances =
+    nodeNumbers.length === matchedNodes.length ? cumulativeDistances : undefined;
+
+  return buildRouteNodes(matchedNodes, routeCumulativeDistances);
 };
 
 const findRouteNodesFromWaypoints = async (
@@ -492,6 +549,7 @@ const findRouteNodesFromWaypoints = async (
   route: RouteEntity,
   parsed: ParsedGpx
 ) => {
+  const { nodeNumbers, cumulativeDistances } = parseNodeSequence(route.knooppunten, route.knooppunten_afstand);
   const { provinceId, countryId } = extractRouteAreaFilter(route);
   const waypointNumbers = parsed.waypoints
     .map((waypoint) => asText(waypoint.title))
@@ -600,7 +658,13 @@ const findRouteNodesFromWaypoints = async (
     });
   }
 
-  return buildRouteNodes(routeNodes);
+  const routeCumulativeDistances =
+    nodeNumbers.length === routeNodes.length &&
+    nodeNumbers.every((nodeNumber, index) => nodeNumber === routeNodes[index]?.number)
+      ? cumulativeDistances
+      : undefined;
+
+  return buildRouteNodes(routeNodes, routeCumulativeDistances);
 };
 
 const distanceBetweenPointsKm = (from: GpxPoint, to: GpxPoint) => {
@@ -840,14 +904,9 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
           },
         ];
 
-  const shouldImportRouteNodes =
-    !Array.isArray(route.route_nodes) || route.route_nodes.length === 0;
-  const matchedRouteNodes = shouldImportRouteNodes
-    ? (() => findRouteNodesFromWaypoints(strapi, route, primary))()
-    : Promise.resolve([]);
-  const resolvedRouteNodes = shouldImportRouteNodes ? await matchedRouteNodes : [];
+  const resolvedRouteNodes = await findRouteNodesFromWaypoints(strapi, route, primary);
   const fallbackRouteNodes =
-    shouldImportRouteNodes && resolvedRouteNodes.length === 0
+    resolvedRouteNodes.length === 0
       ? await findMatchedRouteNodes(strapi, route, primary)
       : [];
   const routeNodes = resolvedRouteNodes.length > 0 ? resolvedRouteNodes : fallbackRouteNodes;
