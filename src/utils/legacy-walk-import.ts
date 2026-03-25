@@ -443,7 +443,77 @@ const parseDurationMinutes = (value: unknown) => {
   return Math.round(numeric);
 };
 
-const parseNodeSequence = (nodesValue: string | null, distancesValue: string | null) => {
+const buildCumulativeDistancesFromSegments = (distances: number[]) =>
+  distances.reduce<number[]>((accumulator, distance, index) => {
+    const previous = index === 0 ? 0 : accumulator[index];
+    accumulator.push(previous + distance);
+    return accumulator;
+  }, [0]);
+
+const normalizeNodeDistances = (
+  rawDistances: number[],
+  nodeCount: number,
+  expectedTotalDistanceKm?: number | null
+) => {
+  if (nodeCount === 0) {
+    return [] as number[];
+  }
+
+  const candidates: number[][] = [];
+  const monotonicRawDistances = rawDistances.every((value, index) => index === 0 || value >= rawDistances[index - 1]);
+
+  if (rawDistances.length === nodeCount) {
+    candidates.push(rawDistances);
+
+    if ((rawDistances[0] ?? 0) > 0) {
+      candidates.push([0, ...rawDistances.slice(0, -1)]);
+    }
+  } else if (rawDistances.length === nodeCount - 1) {
+    candidates.push(buildCumulativeDistancesFromSegments(rawDistances));
+
+    if (monotonicRawDistances) {
+      candidates.push([0, ...rawDistances]);
+    }
+  } else if (rawDistances.length === 1 && nodeCount > 1) {
+    candidates.push(
+      Array.from({ length: nodeCount }, (_, index) =>
+        index === 0 ? 0 : (rawDistances[0] / (nodeCount - 1)) * index
+      )
+    );
+  } else {
+    candidates.push(Array.from({ length: nodeCount }, () => 0));
+  }
+
+  const scaleFactors = [1, 0.1, 0.01, 0.001];
+  let bestCandidate = candidates[0];
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    for (const scaleFactor of scaleFactors) {
+      const scaledCandidate = candidate.map((value) => value * scaleFactor);
+      const firstDistancePenalty = Math.abs(scaledCandidate[0] ?? 0) * 5;
+      const finalDistance = scaledCandidate[scaledCandidate.length - 1] ?? 0;
+      const totalDistancePenalty =
+        typeof expectedTotalDistanceKm === 'number' && Number.isFinite(expectedTotalDistanceKm) && expectedTotalDistanceKm > 0
+          ? Math.abs(finalDistance - expectedTotalDistanceKm)
+          : finalDistance;
+      const score = firstDistancePenalty + totalDistancePenalty;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestCandidate = scaledCandidate;
+      }
+    }
+  }
+
+  return bestCandidate;
+};
+
+const parseNodeSequence = (
+  nodesValue: string | null,
+  distancesValue: string | null,
+  expectedTotalDistanceKm?: number | null
+) => {
   if (!nodesValue) {
     return {
       nodeNumbers: [] as string[],
@@ -465,20 +535,11 @@ const parseNodeSequence = (nodesValue: string | null, distancesValue: string | n
     (match) => Number.parseFloat(match[0].replace(',', '.'))
   ).filter((value) => Number.isFinite(value));
 
-  const cumulativeDistances =
-    rawDistances.length === nodeNumbers.length
-      ? rawDistances
-      : rawDistances.length === nodeNumbers.length - 1
-        ? rawDistances.reduce<number[]>((accumulator, distance, index) => {
-            const previous = index === 0 ? 0 : accumulator[index];
-            accumulator.push(previous + distance);
-            return accumulator;
-          }, [0])
-        : rawDistances.length === 1 && nodeNumbers.length > 1
-          ? Array.from({ length: nodeNumbers.length }, (_, index) =>
-              index === 0 ? 0 : (rawDistances[0] / (nodeNumbers.length - 1)) * index
-            )
-          : Array.from({ length: nodeNumbers.length }, () => 0);
+  const cumulativeDistances = normalizeNodeDistances(
+    rawDistances,
+    nodeNumbers.length,
+    expectedTotalDistanceKm
+  );
 
   return {
     nodeNumbers,
@@ -489,9 +550,14 @@ const parseNodeSequence = (nodesValue: string | null, distancesValue: string | n
 const parseRouteNodes = (
   nodesValue: string | null,
   distancesValue: string | null,
-  coordinatesByNodeIndex: Array<Coordinate | null>
+  coordinatesByNodeIndex: Array<Coordinate | null>,
+  expectedTotalDistanceKm?: number | null
 ) => {
-  const { nodeNumbers, cumulativeDistances } = parseNodeSequence(nodesValue, distancesValue);
+  const { nodeNumbers, cumulativeDistances } = parseNodeSequence(
+    nodesValue,
+    distancesValue,
+    expectedTotalDistanceKm
+  );
 
   if (nodeNumbers.length === 0) {
     return [];
@@ -1861,6 +1927,7 @@ export const importLegacyWalks = async (
     const blocksDescription = description ? htmlToBlocks(description) : null;
     const rawKnooppunten = toStringValue(walk.Knooppunten);
     const rawKnooppuntenAfstand = toStringValue(walk.Knooppunten_afstand);
+    const expectedRouteDistanceKm = toNumberValue(walk.Aantal_km);
     const parsedTextSequence = parseNodeSequence(rawKnooppunten, rawKnooppuntenAfstand);
     const parsedNodeNumbersFromText = parsedTextSequence.nodeNumbers;
     const startCoordinate = {
@@ -1899,7 +1966,11 @@ export const importLegacyWalks = async (
       (legacyTableNodes.length > 0 ? legacyTableNodes.map((node) => node.nodeNumber) : parsedNodeNumbersFromText);
     const effectiveKnooppunten =
       exactLegacyNodeSequence || legacyTableNodes.length > 0 ? parsedNodeNumbers.join(' ') : rawKnooppunten;
-    const { cumulativeDistances } = parseNodeSequence(effectiveKnooppunten, rawKnooppuntenAfstand);
+    const { cumulativeDistances } = parseNodeSequence(
+      effectiveKnooppunten,
+      rawKnooppuntenAfstand,
+      expectedRouteDistanceKm
+    );
     const nodeTableCoordinatesByNodeNumber = await findNodeCoordinatesByNumber(
       strapi,
       parsedNodeNumbers,
@@ -1935,7 +2006,12 @@ export const importLegacyWalks = async (
         nodeTableCoordinatesByNodeNumber
       );
 
-    const routeNodes = parseRouteNodes(effectiveKnooppunten, rawKnooppuntenAfstand, matchedNodeCoordinates);
+    const routeNodes = parseRouteNodes(
+      effectiveKnooppunten,
+      rawKnooppuntenAfstand,
+      matchedNodeCoordinates,
+      expectedRouteDistanceKm
+    );
     const routeData = stripUndefinedDeep({
       title,
       slug,

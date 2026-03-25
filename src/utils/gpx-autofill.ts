@@ -342,7 +342,79 @@ const buildRouteBounds = (parsed: ParsedGpx) => {
   };
 };
 
-const parseNodeSequence = (nodesValue: string | null | undefined, distancesValue: string | null | undefined) => {
+const buildCumulativeDistancesFromSegments = (distances: number[]) =>
+  distances.reduce<number[]>((accumulator, distance, index) => {
+    const previous = index === 0 ? 0 : accumulator[index];
+    accumulator.push(previous + distance);
+    return accumulator;
+  }, [0]);
+
+const normalizeNodeDistances = (
+  rawDistances: number[],
+  nodeCount: number,
+  expectedTotalDistanceKm?: number
+) => {
+  if (nodeCount === 0) {
+    return [] as number[];
+  }
+
+  const candidates: number[][] = [];
+  const monotonicRawDistances = rawDistances.every((value, index) => index === 0 || value >= rawDistances[index - 1]);
+
+  if (rawDistances.length === nodeCount) {
+    candidates.push(rawDistances);
+
+    if ((rawDistances[0] ?? 0) > 0) {
+      candidates.push([0, ...rawDistances.slice(0, -1)]);
+    }
+  } else if (rawDistances.length === nodeCount - 1) {
+    candidates.push(buildCumulativeDistancesFromSegments(rawDistances));
+
+    if (monotonicRawDistances) {
+      candidates.push([0, ...rawDistances]);
+    }
+  } else if (rawDistances.length === 1 && nodeCount > 1) {
+    candidates.push(
+      Array.from({ length: nodeCount }, (_, index) =>
+        index === 0 ? 0 : (rawDistances[0] / (nodeCount - 1)) * index
+      )
+    );
+  }
+
+  if (candidates.length === 0) {
+    return [] as number[];
+  }
+
+  const scaleFactors = [1, 0.1, 0.01, 0.001];
+  let bestCandidate = candidates[0];
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    for (const scaleFactor of scaleFactors) {
+      const scaledCandidate = candidate.map((value) => value * scaleFactor);
+      const firstDistancePenalty = Math.abs(scaledCandidate[0] ?? 0) * 5;
+      const finalDistance = scaledCandidate[scaledCandidate.length - 1] ?? 0;
+      const totalDistancePenalty =
+        typeof expectedTotalDistanceKm === 'number' && Number.isFinite(expectedTotalDistanceKm) && expectedTotalDistanceKm > 0
+          ? Math.abs(finalDistance - expectedTotalDistanceKm)
+          : finalDistance;
+      const score = firstDistancePenalty + totalDistancePenalty;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestCandidate = scaledCandidate;
+      }
+    }
+  }
+
+  return bestCandidate;
+};
+
+const parseNodeSequence = (
+  nodesValue: string | null | undefined,
+  distancesValue: string | null | undefined,
+  expectedTotalDistanceKm?: number
+) => {
   const nodeNumbers = Array.from(
     (nodesValue ?? '').matchAll(/\d+[A-Za-z]?/g),
     (match) => match[0].trim()
@@ -360,20 +432,11 @@ const parseNodeSequence = (nodesValue: string | null | undefined, distancesValue
     (match) => Number.parseFloat(match[0].replace(',', '.'))
   ).filter((value) => Number.isFinite(value));
 
-  const cumulativeDistances =
-    rawDistances.length === nodeNumbers.length
-      ? rawDistances
-      : rawDistances.length === nodeNumbers.length - 1
-        ? rawDistances.reduce<number[]>((accumulator, distance, index) => {
-            const previous = index === 0 ? 0 : accumulator[index];
-            accumulator.push(previous + distance);
-            return accumulator;
-          }, [0])
-        : rawDistances.length === 1 && nodeNumbers.length > 1
-          ? Array.from({ length: nodeNumbers.length }, (_, index) =>
-              index === 0 ? 0 : (rawDistances[0] / (nodeNumbers.length - 1)) * index
-            )
-          : [];
+  const cumulativeDistances = normalizeNodeDistances(
+    rawDistances,
+    nodeNumbers.length,
+    expectedTotalDistanceKm
+  );
 
   return {
     nodeNumbers,
@@ -419,12 +482,37 @@ const buildRouteNodes = (
   });
 };
 
+const buildCanonicalRouteNodes = (
+  nodeNumbers: string[],
+  coordinatesByIndex: MatchedRouteNode[],
+  cumulativeDistances: number[]
+): RouteNode[] =>
+  nodeNumbers.map((nodeNumber, index) => {
+    const cumulativeDistanceKm = cumulativeDistances[index] ?? 0;
+    const previousCumulativeDistanceKm = index > 0 ? (cumulativeDistances[index - 1] ?? 0) : 0;
+    const coordinates = coordinatesByIndex[index];
+
+    return {
+      node_number: nodeNumber,
+      label: nodeNumber,
+      order: index + 1,
+      segment_distance_km: round(Math.max(0, cumulativeDistanceKm - previousCumulativeDistanceKm), 2),
+      cumulative_distance_km: round(cumulativeDistanceKm, 2),
+      latitude: coordinates ? round(coordinates.latitude, 6) : null,
+      longitude: coordinates ? round(coordinates.longitude, 6) : null,
+    };
+  });
+
 const findMatchedRouteNodes = async (
   strapi: Core.Strapi,
   route: RouteEntity,
   parsed: ParsedGpx
 ) => {
-  const { nodeNumbers, cumulativeDistances } = parseNodeSequence(route.knooppunten, route.knooppunten_afstand);
+  const { nodeNumbers, cumulativeDistances } = parseNodeSequence(
+    route.knooppunten,
+    route.knooppunten_afstand,
+    parsed.distanceKm
+  );
   const { provinceId, countryId } = extractRouteAreaFilter(route);
   const bounds = buildRouteBounds(parsed);
   const boundsPadding = 0.01;
@@ -538,6 +626,10 @@ const findMatchedRouteNodes = async (
     lastSeenTrackIndexByNodeId.set(nearestNode.id, trackIndex);
   }
 
+  if (nodeNumbers.length === matchedNodes.length && cumulativeDistances.length === nodeNumbers.length) {
+    return buildCanonicalRouteNodes(nodeNumbers, matchedNodes, cumulativeDistances);
+  }
+
   const routeCumulativeDistances =
     nodeNumbers.length === matchedNodes.length ? cumulativeDistances : undefined;
 
@@ -549,7 +641,11 @@ const findRouteNodesFromWaypoints = async (
   route: RouteEntity,
   parsed: ParsedGpx
 ) => {
-  const { nodeNumbers, cumulativeDistances } = parseNodeSequence(route.knooppunten, route.knooppunten_afstand);
+  const { nodeNumbers, cumulativeDistances } = parseNodeSequence(
+    route.knooppunten,
+    route.knooppunten_afstand,
+    parsed.distanceKm
+  );
   const { provinceId, countryId } = extractRouteAreaFilter(route);
   const waypointNumbers = parsed.waypoints
     .map((waypoint) => asText(waypoint.title))
@@ -656,6 +752,10 @@ const findRouteNodesFromWaypoints = async (
       latitude: matchedLatitude,
       longitude: matchedLongitude,
     });
+  }
+
+  if (nodeNumbers.length === routeNodes.length && cumulativeDistances.length === nodeNumbers.length) {
+    return buildCanonicalRouteNodes(nodeNumbers, routeNodes, cumulativeDistances);
   }
 
   const routeCumulativeDistances =
