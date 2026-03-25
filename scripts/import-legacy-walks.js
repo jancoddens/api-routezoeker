@@ -128,6 +128,12 @@ const run = async () => {
 };
 
 run().catch((error) => {
+  const validationErrors = error?.details?.errors;
+
+  if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+    console.error('Validation details:', JSON.stringify(validationErrors, null, 2));
+  }
+
   console.error(error);
   process.exit(1);
 });
