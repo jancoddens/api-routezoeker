@@ -29,6 +29,36 @@ type EntityReference = {
   country?: { id: number } | null;
 };
 
+const toEntityReference = (value: unknown): EntityReference | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const entry = value as Record<string, unknown>;
+  const id = typeof entry.id === 'number' ? entry.id : null;
+  const name = typeof entry.name === 'string' ? entry.name : null;
+
+  if (id === null || !name) {
+    return undefined;
+  }
+
+  const slug = typeof entry.slug === 'string' && entry.slug.length > 0 ? entry.slug : slugify(name);
+  const countryValue = entry.country;
+  const country =
+    countryValue && typeof countryValue === 'object' && typeof (countryValue as Record<string, unknown>).id === 'number'
+      ? { id: (countryValue as Record<string, unknown>).id as number }
+      : null;
+
+  return {
+    id,
+    name,
+    slug,
+    iso_code: typeof entry.iso_code === 'string' ? entry.iso_code : null,
+    code: typeof entry.code === 'string' ? entry.code : null,
+    country,
+  };
+};
+
 type ImportSummary = {
   total: number;
   created: number;
@@ -294,9 +324,7 @@ const findOneBySlugOrName = async (
     limit: 1,
   });
 
-  return Array.isArray(entries)
-    ? ((entries[0] as unknown) as EntityReference | undefined)
-    : undefined;
+  return Array.isArray(entries) ? toEntityReference(entries[0]) : undefined;
 };
 
 const listEntities = async (
@@ -310,7 +338,7 @@ const listEntities = async (
     limit: 500,
   });
 
-  return (Array.isArray(entries) ? entries : []) as EntityReference[];
+  return Array.isArray(entries) ? entries.map(toEntityReference).filter((entry): entry is EntityReference => !!entry) : [];
 };
 
 const findCountryCandidate = (countries: EntityReference[]) =>
@@ -332,7 +360,7 @@ const ensureCountry = async (
     return existing ?? { id: 0, name: COUNTRY_NAME, slug: COUNTRY_SLUG, iso_code: 'NL' };
   }
 
-  const created = (await strapi.entityService.create('api::country.country', {
+  const createdEntry = await strapi.entityService.create('api::country.country', {
     data: {
       name: COUNTRY_NAME,
       slug: COUNTRY_SLUG,
@@ -340,7 +368,13 @@ const ensureCountry = async (
       publishedAt: new Date().toISOString(),
     } as never,
     locale,
-  })) as EntityReference;
+  });
+  const created = toEntityReference(createdEntry) ?? {
+    id: 0,
+    name: COUNTRY_NAME,
+    slug: COUNTRY_SLUG,
+    iso_code: 'NL',
+  };
 
   countries.push(created);
   return created;
@@ -386,7 +420,7 @@ const ensureProvinces = async (
       continue;
     }
 
-    const created = (await strapi.entityService.create('api::province.province', {
+    const createdEntry = await strapi.entityService.create('api::province.province', {
       data: {
         name: province.name,
         slug: province.slug,
@@ -394,7 +428,13 @@ const ensureProvinces = async (
         publishedAt: new Date().toISOString(),
       } as never,
       locale,
-    })) as EntityReference;
+    });
+    const created = toEntityReference(createdEntry) ?? {
+      id: 0,
+      name: province.name,
+      slug: province.slug,
+      country: { id: countryId },
+    };
 
     existingProvinces.push(created);
     provinceMap.set(province.slug, created);

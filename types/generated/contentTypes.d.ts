@@ -730,7 +730,7 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     region: Schema.Attribute.Relation<'manyToOne', 'api::region.region'>;
     routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
-    slug: Schema.Attribute.UID &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -819,7 +819,7 @@ export interface ApiCountryCountry extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     regions: Schema.Attribute.Relation<'oneToMany', 'api::region.region'>;
     routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
-    slug: Schema.Attribute.UID<''> &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1001,7 +1001,7 @@ export interface ApiNodeNetworkNodeNetwork extends Struct.CollectionTypeSchema {
     province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;
     publishedAt: Schema.Attribute.DateTime;
     region: Schema.Attribute.Relation<'manyToOne', 'api::region.region'>;
-    slug: Schema.Attribute.UID &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1137,7 +1137,7 @@ export interface ApiProvinceProvince extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     regions: Schema.Attribute.Relation<'manyToMany', 'api::region.region'>;
     routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
-    slug: Schema.Attribute.UID<''> &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1218,7 +1218,7 @@ export interface ApiRegionRegion extends Struct.CollectionTypeSchema {
       'api::province.province'
     >;
     publishedAt: Schema.Attribute.DateTime;
-    slug: Schema.Attribute.UID &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1268,7 +1268,7 @@ export interface ApiRouteTypeRouteType extends Struct.CollectionTypeSchema {
       }>;
     publishedAt: Schema.Attribute.DateTime;
     routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
-    slug: Schema.Attribute.UID &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1457,7 +1457,7 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
-    slug: Schema.Attribute.UID &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1530,7 +1530,7 @@ export interface ApiTagTag extends Struct.CollectionTypeSchema {
       }>;
     publishedAt: Schema.Attribute.DateTime;
     routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
-    slug: Schema.Attribute.UID &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1577,7 +1577,7 @@ export interface ApiThemeTheme extends Struct.CollectionTypeSchema {
       'api::route-type.route-type'
     >;
     routes: Schema.Attribute.Relation<'oneToMany', 'api::route.route'>;
-    slug: Schema.Attribute.UID &
+    slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;

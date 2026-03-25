@@ -41,6 +41,36 @@ type EntityReference = {
   country?: { id: number } | null;
 };
 
+const toEntityReference = (value: unknown): EntityReference | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const entry = value as Record<string, unknown>;
+  const id = typeof entry.id === 'number' ? entry.id : null;
+  const name = typeof entry.name === 'string' ? entry.name : null;
+
+  if (id === null || !name) {
+    return undefined;
+  }
+
+  const slug = typeof entry.slug === 'string' && entry.slug.length > 0 ? entry.slug : slugify(name);
+  const countryValue = entry.country;
+  const country =
+    countryValue && typeof countryValue === 'object' && typeof (countryValue as Record<string, unknown>).id === 'number'
+      ? { id: (countryValue as Record<string, unknown>).id as number }
+      : null;
+
+  return {
+    id,
+    name,
+    slug,
+    iso_code: typeof entry.iso_code === 'string' ? entry.iso_code : null,
+    code: typeof entry.code === 'string' ? entry.code : null,
+    country,
+  };
+};
+
 type ImportSummary = {
   total: number;
   created: number;
@@ -806,9 +836,7 @@ const findOneBySlugOrName = async (
     limit: 1,
   });
 
-  return Array.isArray(entries)
-    ? ((entries[0] as unknown) as EntityReference | undefined)
-    : undefined;
+  return Array.isArray(entries) ? toEntityReference(entries[0]) : undefined;
 };
 
 const listEntities = async (
@@ -822,7 +850,7 @@ const listEntities = async (
     limit: 500,
   });
 
-  return (Array.isArray(entries) ? entries : []) as EntityReference[];
+  return Array.isArray(entries) ? entries.map(toEntityReference).filter((entry): entry is EntityReference => !!entry) : [];
 };
 
 const findCountryCandidate = (
@@ -925,7 +953,7 @@ const ensureCountry = async (
     return existing ?? { id: 0, name: COUNTRY_NAME, slug: COUNTRY_SLUG, iso_code: 'BE' };
   }
 
-  const created = (await strapi.entityService.create('api::country.country', {
+  const createdEntry = await strapi.entityService.create('api::country.country', {
     data: {
       name: COUNTRY_NAME,
       slug: COUNTRY_SLUG,
@@ -933,7 +961,13 @@ const ensureCountry = async (
       publishedAt: publishedAt(),
     } as never,
     locale,
-  })) as EntityReference;
+  });
+  const created = toEntityReference(createdEntry) ?? {
+    id: 0,
+    name: COUNTRY_NAME,
+    slug: COUNTRY_SLUG,
+    iso_code: 'BE',
+  };
 
   countries.push(created);
 
@@ -962,7 +996,7 @@ const ensureRegions = async (
       continue;
     }
 
-    const created = (await strapi.entityService.create('api::region.region', {
+    const createdEntry = await strapi.entityService.create('api::region.region', {
       data: {
         name: region.name,
         slug: region.slug,
@@ -970,7 +1004,12 @@ const ensureRegions = async (
         publishedAt: publishedAt(),
       } as never,
       locale,
-    })) as EntityReference;
+    });
+    const created = toEntityReference(createdEntry) ?? {
+      id: 0,
+      name: region.name,
+      slug: region.slug,
+    };
 
     existingRegions.push(created);
     regionMap.set(region.slug, created);
@@ -1002,21 +1041,29 @@ const ensureProvinces = async (
       continue;
     }
 
-    const created = (await strapi.entityService.create('api::province.province', {
+    const countryId =
+      findCountryCandidate(countries, COUNTRY_NAME, province.regionSlug)?.id ??
+      findCountryCandidate(countries, null, province.regionSlug)?.id ??
+      null;
+
+    const createdEntry = await strapi.entityService.create('api::province.province', {
       data: {
         name: province.name,
         slug: province.slug,
-        country:
-          findCountryCandidate(countries, COUNTRY_NAME, province.regionSlug)?.id ??
-          findCountryCandidate(countries, null, province.regionSlug)?.id ??
-          null,
+        country: countryId,
         regions: regions.get(province.regionSlug)?.id
           ? { connect: [regions.get(province.regionSlug)!.id] }
           : undefined,
         publishedAt: publishedAt(),
       } as never,
       locale,
-    })) as EntityReference;
+    });
+    const created = toEntityReference(createdEntry) ?? {
+      id: 0,
+      name: province.name,
+      slug: province.slug,
+      country: countryId ? { id: countryId } : null,
+    };
 
     existingProvinces.push(created);
     provinceMap.set(province.slug, created);

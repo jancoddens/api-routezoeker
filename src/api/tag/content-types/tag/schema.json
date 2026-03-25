@@ -24,7 +24,7 @@
       }
     },
     "slug": {
-      "type": "uid",
+      "type": "string",
       "pluginOptions": {
         "i18n": {
           "localized": true

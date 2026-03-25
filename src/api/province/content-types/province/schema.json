@@ -25,13 +25,12 @@
       "required": true
     },
     "slug": {
-      "type": "uid",
+      "type": "string",
       "pluginOptions": {
         "i18n": {
           "localized": true
         }
-      },
-      "targetField": ""
+      }
     },
     "code": {
       "type": "string",

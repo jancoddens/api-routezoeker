@@ -1660,7 +1660,7 @@ export const importLegacyWalks = async (
   for (const walk of walks) {
     const title = toStringValue(walk.Titel);
     const rawSlug = toStringValue(walk.URL);
-    const slug = rawSlug;
+    const slug = rawSlug ? slugify(rawSlug) : null;
 
     if (!title || !slug) {
       skipped += 1;
