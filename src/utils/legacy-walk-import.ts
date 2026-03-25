@@ -134,6 +134,11 @@ type UploadFolderEntity = {
   name: string;
 };
 
+type Coordinate = {
+  latitude: number;
+  longitude: number;
+};
+
 type ImportSummary = {
   total: number;
   created: number;
@@ -454,8 +459,8 @@ const parseRouteNodes = (
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 const distanceBetweenCoordinatesKm = (
-  a: { latitude: number; longitude: number },
-  b: { latitude: number; longitude: number }
+  a: Coordinate,
+  b: Coordinate
 ) => {
   const earthRadiusKm = 6371;
   const deltaLat = toRadians(b.latitude - a.latitude);
@@ -470,18 +475,67 @@ const distanceBetweenCoordinatesKm = (
   return 2 * earthRadiusKm * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 };
 
+const distanceBetweenCoordinatesMeters = (a: Coordinate, b: Coordinate) =>
+  distanceBetweenCoordinatesKm(a, b) * 1000;
+
+const buildCoordinateBounds = (coordinates: Coordinate[]) => {
+  let minLatitude = Number.POSITIVE_INFINITY;
+  let maxLatitude = Number.NEGATIVE_INFINITY;
+  let minLongitude = Number.POSITIVE_INFINITY;
+  let maxLongitude = Number.NEGATIVE_INFINITY;
+
+  for (const coordinate of coordinates) {
+    minLatitude = Math.min(minLatitude, coordinate.latitude);
+    maxLatitude = Math.max(maxLatitude, coordinate.latitude);
+    minLongitude = Math.min(minLongitude, coordinate.longitude);
+    maxLongitude = Math.max(maxLongitude, coordinate.longitude);
+  }
+
+  if (!Number.isFinite(minLatitude) || !Number.isFinite(minLongitude)) {
+    return null;
+  }
+
+  return {
+    minLatitude,
+    maxLatitude,
+    minLongitude,
+    maxLongitude,
+  };
+};
+
+const distanceToRouteMeters = (candidate: Coordinate, routeCoordinates: Coordinate[]) => {
+  if (routeCoordinates.length === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const routeCoordinate of routeCoordinates) {
+    const distance = distanceBetweenCoordinatesMeters(candidate, routeCoordinate);
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+    }
+  }
+
+  return nearestDistance;
+};
+
 const findNodeCoordinatesByNumber = async (
   strapi: Core.Strapi,
   nodeNumbers: string[],
-  startCoordinate?: { latitude: number; longitude: number } | null,
+  startCoordinate?: Coordinate | null,
   provinceId?: number | null,
-  countryId?: number | null
+  countryId?: number | null,
+  routeCoordinates: Coordinate[] = []
 ) => {
   if (nodeNumbers.length === 0) {
-    return new Map<string, { latitude: number; longitude: number }>();
+    return new Map<string, Coordinate>();
   }
 
   const uniqueNodeNumbers = Array.from(new Set(nodeNumbers));
+  const routeBounds = buildCoordinateBounds(routeCoordinates);
+  const boundsPadding = 0.02;
 
   const findCandidates = async (filters: Record<string, unknown>) =>
     (await strapi.entityService.findMany('api::node.node', {
@@ -489,16 +543,24 @@ const findNodeCoordinatesByNumber = async (
       fields: ['number', 'latitude', 'longitude'],
       publicationState: 'preview',
       limit: uniqueNodeNumbers.length * 10,
-    })) as Array<{
-      number?: string | null;
-      latitude?: number | string | null;
-      longitude?: number | string | null;
-    }>;
+    })) as Array<{ number?: string | null; latitude?: number | string | null; longitude?: number | string | null }>;
 
   let candidates = await findCandidates({
     number: {
       $in: uniqueNodeNumbers,
     },
+    ...(routeBounds
+      ? {
+          latitude: {
+            $gte: routeBounds.minLatitude - boundsPadding,
+            $lte: routeBounds.maxLatitude + boundsPadding,
+          },
+          longitude: {
+            $gte: routeBounds.minLongitude - boundsPadding,
+            $lte: routeBounds.maxLongitude + boundsPadding,
+          },
+        }
+      : {}),
     ...(provinceId
       ? {
           province: {
@@ -520,13 +582,30 @@ const findNodeCoordinatesByNumber = async (
       number: {
         $in: uniqueNodeNumbers,
       },
+      ...(routeBounds
+        ? {
+            latitude: {
+              $gte: routeBounds.minLatitude - boundsPadding,
+              $lte: routeBounds.maxLatitude + boundsPadding,
+            },
+            longitude: {
+              $gte: routeBounds.minLongitude - boundsPadding,
+              $lte: routeBounds.maxLongitude + boundsPadding,
+            },
+          }
+        : {}),
     });
   }
 
-  const candidatesByNodeNumber = new Map<
-    string,
-    Array<{ latitude: number; longitude: number }>
-  >();
+  if (candidates.length === 0) {
+    candidates = await findCandidates({
+      number: {
+        $in: uniqueNodeNumbers,
+      },
+    });
+  }
+
+  const candidatesByNodeNumber = new Map<string, Coordinate[]>();
 
   for (const candidate of candidates) {
     const nodeNumber = toStringValue(candidate.number);
@@ -557,13 +636,21 @@ const findNodeCoordinatesByNumber = async (
     }
 
     let bestCandidate = nodeCandidates[0];
-    let bestDistance = Number.POSITIVE_INFINITY;
+    let bestRouteDistance = Number.POSITIVE_INFINITY;
+    let bestStartDistance = Number.POSITIVE_INFINITY;
 
     for (const candidate of nodeCandidates) {
-      const distance = distanceBetweenCoordinatesKm(startCoordinate, candidate);
+      const routeDistance = distanceToRouteMeters(candidate, routeCoordinates);
+      const startDistance = startCoordinate
+        ? distanceBetweenCoordinatesKm(startCoordinate, candidate)
+        : Number.POSITIVE_INFINITY;
 
-      if (distance < bestDistance) {
-        bestDistance = distance;
+      if (
+        routeDistance < bestRouteDistance ||
+        (routeDistance === bestRouteDistance && startDistance < bestStartDistance)
+      ) {
+        bestRouteDistance = routeDistance;
+        bestStartDistance = startDistance;
         bestCandidate = candidate;
       }
     }
@@ -959,12 +1046,12 @@ const resolveLegacyFile = async (root: string, folder: string, fileName: string 
 
 const readGpxWaypointCoordinates = async (absolutePath: string | null) => {
   if (!absolutePath) {
-    return new Map<string, { latitude: number; longitude: number }>();
+    return new Map<string, Coordinate>();
   }
 
   const xml = await fs.readFile(absolutePath, 'utf8');
   const matches = xml.matchAll(/<wpt\b([^>]*)>([\s\S]*?)<\/wpt>/gi);
-  const coordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+  const coordinatesByNodeNumber = new Map<string, Coordinate>();
 
   for (const [, attrs, inner] of matches) {
     const latitudeMatch = attrs.match(/\blat=["']([^"']+)["']/i);
@@ -985,6 +1072,34 @@ const readGpxWaypointCoordinates = async (absolutePath: string | null) => {
   }
 
   return coordinatesByNodeNumber;
+};
+
+const readGpxRouteCoordinates = async (absolutePath: string | null) => {
+  if (!absolutePath) {
+    return [];
+  }
+
+  const xml = await fs.readFile(absolutePath, 'utf8');
+  const matches = xml.matchAll(/<(trkpt|rtept)\b([^>]*)>/gi);
+  const coordinates: Coordinate[] = [];
+
+  for (const [, , attrs] of matches) {
+    const latitudeMatch = attrs.match(/\blat=["']([^"']+)["']/i);
+    const longitudeMatch = attrs.match(/\blon=["']([^"']+)["']/i);
+    const latitude = toNumberValue(latitudeMatch?.[1]);
+    const longitude = toNumberValue(longitudeMatch?.[1]);
+
+    if (latitude === null || longitude === null) {
+      continue;
+    }
+
+    coordinates.push({
+      latitude: Math.round(latitude * 1_000_000) / 1_000_000,
+      longitude: Math.round(longitude * 1_000_000) / 1_000_000,
+    });
+  }
+
+  return coordinates;
 };
 
 const getExistingTableColumns = async (config: LegacyDbConfig, tableName: string) => {
@@ -1433,14 +1548,8 @@ export const importLegacyWalks = async (
       latitude: toNumberValue(walk.Cor1),
       longitude: toNumberValue(walk.Cor2),
     };
-    const nodeTableCoordinatesByNodeNumber = await findNodeCoordinatesByNumber(
-      strapi,
-      parsedNodeNumbers,
-      startCoordinate.latitude !== null && startCoordinate.longitude !== null ? startCoordinate : null,
-      province?.id ?? null,
-      country?.id ?? null
-    );
     const gpxCoordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
+    const gpxRouteCoordinates: Coordinate[] = [];
     const gpxPathsForNodeMatching = [primaryGpxPath];
 
     for (const gpxRow of additionalGpxRows) {
@@ -1453,13 +1562,25 @@ export const importLegacyWalks = async (
 
     for (const gpxPath of Array.from(new Set(gpxPathsForNodeMatching.filter(Boolean)))) {
       const gpxCoordinates = await readGpxWaypointCoordinates(gpxPath);
+      const gpxRoutePoints = await readGpxRouteCoordinates(gpxPath);
 
       for (const [nodeNumber, coordinates] of gpxCoordinates) {
         if (!gpxCoordinatesByNodeNumber.has(nodeNumber)) {
           gpxCoordinatesByNodeNumber.set(nodeNumber, coordinates);
         }
       }
+
+      gpxRouteCoordinates.push(...gpxRoutePoints);
     }
+
+    const nodeTableCoordinatesByNodeNumber = await findNodeCoordinatesByNumber(
+      strapi,
+      parsedNodeNumbers,
+      startCoordinate.latitude !== null && startCoordinate.longitude !== null ? startCoordinate : null,
+      province?.id ?? null,
+      country?.id ?? null,
+      gpxRouteCoordinates
+    );
 
     const legacyTableCoordinatesByNodeNumber = await findLegacyWalkNodeCoordinates(config, Number(walk.ID));
     const mergedCoordinatesByNodeNumber = new Map<string, { latitude: number; longitude: number }>();
