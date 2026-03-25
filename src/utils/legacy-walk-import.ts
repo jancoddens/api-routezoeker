@@ -149,6 +149,7 @@ type ImportSummary = {
 const MAX_NODE_DISTANCE_FROM_ROUTE_METERS = 250;
 
 type LegacyWalkNode = Coordinate & {
+  id?: number;
   nodeNumber: string;
 };
 
@@ -1146,6 +1147,29 @@ const buildRouteDistanceIndex = (routeCoordinates: Coordinate[]) => {
   });
 };
 
+const findExactLegacyNodeSequence = (expectedNodeNumbers: string[], legacyNodes: LegacyWalkNode[]) => {
+  if (expectedNodeNumbers.length === 0 || legacyNodes.length < expectedNodeNumbers.length) {
+    return null;
+  }
+
+  for (let startIndex = 0; startIndex <= legacyNodes.length - expectedNodeNumbers.length; startIndex += 1) {
+    let matches = true;
+
+    for (let offset = 0; offset < expectedNodeNumbers.length; offset += 1) {
+      if (legacyNodes[startIndex + offset]?.nodeNumber !== expectedNodeNumbers[offset]) {
+        matches = false;
+        break;
+      }
+    }
+
+    if (matches) {
+      return legacyNodes.slice(startIndex, startIndex + expectedNodeNumbers.length);
+    }
+  }
+
+  return null;
+};
+
 const buildSequentialRouteNodeCoordinates = (
   nodeNumbers: string[],
   cumulativeDistances: number[],
@@ -1307,6 +1331,7 @@ const findLegacyWalkNodes = async (config: LegacyDbConfig, walkId: number) => {
   }
 
   const walkIdColumn = pickExistingColumn(columns, ['Wid', 'wid', 'wandeling_id', 'walk_id', 'route_id']);
+  const rowIdColumn = pickExistingColumn(columns, ['id', 'ID']);
   const nodeNumberColumn = pickExistingColumn(columns, ['Knooppunt', 'knooppunt', 'node_number', 'number', 'nr']);
   const latitudeColumn = pickExistingColumn(columns, ['Latitude', 'latitude', 'lat', 'Cor1', 'y']);
   const longitudeColumn = pickExistingColumn(columns, ['Longitude', 'longitude', 'lng', 'lon', 'Cor2', 'x']);
@@ -1317,6 +1342,10 @@ const findLegacyWalkNodes = async (config: LegacyDbConfig, walkId: number) => {
   }
 
   const selectedColumns = [walkIdColumn, nodeNumberColumn, latitudeColumn, longitudeColumn];
+
+  if (rowIdColumn) {
+    selectedColumns.push(rowIdColumn);
+  }
 
   if (orderColumn) {
     selectedColumns.push(orderColumn);
@@ -1331,7 +1360,7 @@ const findLegacyWalkNodes = async (config: LegacyDbConfig, walkId: number) => {
         `${walkIdColumn} = ${Number(walkId)}`,
         undefined,
         undefined,
-        orderColumn ? `${orderColumn} ASC` : undefined
+        orderColumn ? `${orderColumn} ASC` : rowIdColumn ? `${rowIdColumn} ASC` : undefined
       )
     )) as Array<Record<string, unknown>>;
 
@@ -1347,6 +1376,7 @@ const findLegacyWalkNodes = async (config: LegacyDbConfig, walkId: number) => {
       }
 
       nodes.push({
+        id: rowIdColumn ? toNumberValue(row[rowIdColumn]) ?? undefined : undefined,
         nodeNumber,
         latitude: Math.round(latitude * 1_000_000) / 1_000_000,
         longitude: Math.round(longitude * 1_000_000) / 1_000_000,
@@ -1714,7 +1744,8 @@ export const importLegacyWalks = async (
     const blocksDescription = description ? htmlToBlocks(description) : null;
     const rawKnooppunten = toStringValue(walk.Knooppunten);
     const rawKnooppuntenAfstand = toStringValue(walk.Knooppunten_afstand);
-    const parsedNodeNumbersFromText = parseNodeSequence(rawKnooppunten, rawKnooppuntenAfstand).nodeNumbers;
+    const parsedTextSequence = parseNodeSequence(rawKnooppunten, rawKnooppuntenAfstand);
+    const parsedNodeNumbersFromText = parsedTextSequence.nodeNumbers;
     const startCoordinate = {
       latitude: toNumberValue(walk.Cor1),
       longitude: toNumberValue(walk.Cor2),
@@ -1745,10 +1776,12 @@ export const importLegacyWalks = async (
     }
 
     const legacyTableNodes = await findLegacyWalkNodes(config, Number(walk.ID));
+    const exactLegacyNodeSequence = findExactLegacyNodeSequence(parsedNodeNumbersFromText, legacyTableNodes);
     const parsedNodeNumbers =
-      legacyTableNodes.length > 0 ? legacyTableNodes.map((node) => node.nodeNumber) : parsedNodeNumbersFromText;
+      exactLegacyNodeSequence?.map((node) => node.nodeNumber) ??
+      (legacyTableNodes.length > 0 ? legacyTableNodes.map((node) => node.nodeNumber) : parsedNodeNumbersFromText);
     const effectiveKnooppunten =
-      legacyTableNodes.length > 0 ? parsedNodeNumbers.join(' ') : rawKnooppunten;
+      exactLegacyNodeSequence || legacyTableNodes.length > 0 ? parsedNodeNumbers.join(' ') : rawKnooppunten;
     const { cumulativeDistances } = parseNodeSequence(effectiveKnooppunten, rawKnooppuntenAfstand);
     const nodeTableCoordinatesByNodeNumber = await findNodeCoordinatesByNumber(
       strapi,
@@ -1759,8 +1792,9 @@ export const importLegacyWalks = async (
       gpxRouteCoordinates
     );
     const legacyTableCoordinatesByNodeNumber = new Map<string, Coordinate>();
+    const legacyNodesForCoordinates = exactLegacyNodeSequence ?? legacyTableNodes;
 
-    for (const legacyTableNode of legacyTableNodes) {
+    for (const legacyTableNode of legacyNodesForCoordinates) {
       if (!legacyTableCoordinatesByNodeNumber.has(legacyTableNode.nodeNumber)) {
         legacyTableCoordinatesByNodeNumber.set(legacyTableNode.nodeNumber, {
           latitude: legacyTableNode.latitude,
@@ -1769,15 +1803,20 @@ export const importLegacyWalks = async (
       }
     }
 
-    const matchedNodeCoordinates = buildSequentialRouteNodeCoordinates(
-      parsedNodeNumbers,
-      cumulativeDistances,
-      startCoordinate.latitude !== null && startCoordinate.longitude !== null ? startCoordinate : null,
-      gpxRouteCoordinates,
-      gpxCoordinatesByNodeNumber,
-      legacyTableCoordinatesByNodeNumber,
-      nodeTableCoordinatesByNodeNumber
-    );
+    const matchedNodeCoordinates =
+      exactLegacyNodeSequence?.map((node) => ({
+        latitude: node.latitude,
+        longitude: node.longitude,
+      })) ??
+      buildSequentialRouteNodeCoordinates(
+        parsedNodeNumbers,
+        cumulativeDistances,
+        startCoordinate.latitude !== null && startCoordinate.longitude !== null ? startCoordinate : null,
+        gpxRouteCoordinates,
+        gpxCoordinatesByNodeNumber,
+        legacyTableCoordinatesByNodeNumber,
+        nodeTableCoordinatesByNodeNumber
+      );
 
     const routeNodes = parseRouteNodes(effectiveKnooppunten, rawKnooppuntenAfstand, matchedNodeCoordinates);
     const routeData = stripUndefinedDeep({
