@@ -201,6 +201,27 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
+const normalizeLegacyRouteSlug = (value: string) => {
+  const normalized = decodeHtmlEntities(value).trim();
+
+  if (!normalized) {
+    return '';
+  }
+
+  const withoutQueryOrHash = normalized.split(/[?#]/, 1)[0] ?? normalized;
+  const withoutProtocolAndHost = withoutQueryOrHash.replace(/^[a-z]+:\/\/[^/]+/i, '');
+  const pathSegments = withoutProtocolAndHost.split('/').map((segment) => segment.trim()).filter(Boolean);
+  const candidate = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : withoutProtocolAndHost;
+
+  return candidate
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9\-_.~]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+};
+
 const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, ' ');
 
 const decodeHtmlEntities = (value: string) =>
@@ -818,6 +839,7 @@ const findOneBySlugOrName = async (
     | 'api::route.route',
   slug: string,
   name: string,
+  extraData: Record<string, unknown>,
   locale?: string
 ) => {
   const populateByUid: Partial<
@@ -837,10 +859,38 @@ const findOneBySlugOrName = async (
     'api::city.city': ['country', 'province', 'region'],
   };
 
+  const relationFilters: Record<string, unknown>[] = [];
+
+  for (const relationName of ['country', 'province', 'region'] as const) {
+    const relationId = extraData[relationName];
+
+    if (typeof relationId !== 'number') {
+      continue;
+    }
+
+    relationFilters.push({
+      [relationName]: {
+        id: {
+          $eq: relationId,
+        },
+      },
+    });
+  }
+
   const entries = await strapi.entityService.findMany(uid, {
-    filters: {
-      $or: [{ slug: { $eq: slug } }, { name: { $eq: name } }],
-    },
+    filters:
+      relationFilters.length > 0
+        ? {
+            $and: [
+              {
+                $or: [{ slug: { $eq: slug } }, { name: { $eq: name } }],
+              },
+              ...relationFilters,
+            ],
+          }
+        : {
+            $or: [{ slug: { $eq: slug } }, { name: { $eq: name } }],
+          },
     ...(populateByUid[uid] ? { populate: populateByUid[uid] as never } : {}),
     locale,
     limit: 1,
@@ -894,7 +944,7 @@ const ensureNamedEntity = async (
   dryRun?: boolean
 ) => {
   const slug = slugify(name);
-  const existing = await findOneBySlugOrName(strapi, uid, slug, name, locale);
+  const existing = await findOneBySlugOrName(strapi, uid, slug, name, extraData, locale);
 
   if (existing || dryRun) {
     return existing ?? { id: 0, name, slug };
@@ -1536,7 +1586,8 @@ export const importLegacyWalks = async (
 
   for (const walk of walks) {
     const title = toStringValue(walk.Titel);
-    const slug = toStringValue(walk.URL);
+    const rawSlug = toStringValue(walk.URL);
+    const slug = rawSlug ? normalizeLegacyRouteSlug(rawSlug) : null;
 
     if (!title || !slug) {
       skipped += 1;
