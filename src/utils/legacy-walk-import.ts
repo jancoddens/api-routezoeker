@@ -201,25 +201,37 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
-const normalizeLegacyRouteSlug = (value: string) => {
-  const normalized = decodeHtmlEntities(value).trim();
+const canonicalCountrySlug = (value: string | null) => {
+  const normalized = value ? slugify(value) : null;
 
   if (!normalized) {
-    return '';
+    return null;
   }
 
-  const withoutQueryOrHash = normalized.split(/[?#]/, 1)[0] ?? normalized;
-  const withoutProtocolAndHost = withoutQueryOrHash.replace(/^[a-z]+:\/\/[^/]+/i, '');
-  const pathSegments = withoutProtocolAndHost.split('/').map((segment) => segment.trim()).filter(Boolean);
-  const candidate = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : withoutProtocolAndHost;
+  if (['belgie', 'belgie', 'belgium', 'be'].includes(normalized)) {
+    return 'belgie';
+  }
 
-  return candidate
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9\-_.~]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
+  if (['nederland', 'netherlands', 'holland', 'nl'].includes(normalized)) {
+    return 'nederland';
+  }
+
+  return normalized;
+};
+
+const normalizeLegacyProvinceName = (provinceName: string | null, countryName: string | null) => {
+  if (!provinceName) {
+    return null;
+  }
+
+  const normalizedProvinceSlug = slugify(provinceName);
+  const normalizedCountrySlug = canonicalCountrySlug(countryName);
+
+  if (normalizedProvinceSlug === 'limburg' && normalizedCountrySlug === 'belgie') {
+    return 'Limburg Vlaanderen';
+  }
+
+  return provinceName;
 };
 
 const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, ' ');
@@ -1587,7 +1599,7 @@ export const importLegacyWalks = async (
   for (const walk of walks) {
     const title = toStringValue(walk.Titel);
     const rawSlug = toStringValue(walk.URL);
-    const slug = rawSlug ? normalizeLegacyRouteSlug(rawSlug) : null;
+    const slug = rawSlug;
 
     if (!title || !slug) {
       skipped += 1;
@@ -1595,7 +1607,7 @@ export const importLegacyWalks = async (
     }
 
     const countryName = toStringValue(walk.Land);
-    const provinceName = toStringValue(walk.Provincie);
+    const provinceName = normalizeLegacyProvinceName(toStringValue(walk.Provincie), countryName);
     const cityName = toStringValue(walk.Gemeente);
     const regionName = toStringValue(walk.Regio);
     const startCityName = toStringValue(walk.Start_gemeente) ?? cityName;
