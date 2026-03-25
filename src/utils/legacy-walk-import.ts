@@ -978,9 +978,10 @@ const ensureNamedEntity = async (
 ) => {
   const slug = slugify(name);
   const existing = await findOneBySlugOrName(strapi, uid, slug, name, extraData, locale);
+  const relaxedExisting = existing ?? (await findOneBySlugOrNameRelaxed(strapi, uid, slug, name, locale));
 
-  if (existing || dryRun) {
-    return existing ?? { id: 0, name, slug };
+  if (relaxedExisting || dryRun) {
+    return relaxedExisting ?? { id: 0, name, slug };
   }
 
   try {
@@ -1011,6 +1012,26 @@ const ensureNamedEntity = async (
 
     throw error;
   }
+};
+
+const findNamedEntity = async (
+  strapi: Core.Strapi,
+  uid:
+    | 'api::country.country'
+    | 'api::province.province'
+    | 'api::region.region'
+    | 'api::city.city',
+  name: string,
+  extraData: Record<string, unknown>,
+  locale?: string
+) => {
+  const slug = slugify(name);
+
+  return (
+    (await findOneBySlugOrName(strapi, uid, slug, name, extraData, locale)) ??
+    (await findOneBySlugOrNameRelaxed(strapi, uid, slug, name, locale)) ??
+    null
+  );
 };
 
 const uploadLocalFile = async (
@@ -1654,35 +1675,31 @@ export const importLegacyWalks = async (
     const routeTypeName = toStringValue(walk.Type);
     const walkingTheme = await ensureThemeEntity(strapi, 'Wandelen', options.locale, options.dryRun);
 
-    const country = countryName
-      ? await ensureNamedEntity(strapi, 'api::country.country', countryName, {}, options.locale, options.dryRun)
-      : null;
+    const country = countryName ? await findNamedEntity(strapi, 'api::country.country', countryName, {}, options.locale) : null;
     const province = provinceName
-      ? await ensureNamedEntity(
+      ? await findNamedEntity(
           strapi,
           'api::province.province',
           provinceName,
           {
             country: country?.id ?? null,
           },
-          options.locale,
-          options.dryRun
+          options.locale
         )
       : null;
     const region = regionName
-      ? await ensureNamedEntity(
+      ? await findNamedEntity(
           strapi,
           'api::region.region',
           regionName,
           {
             country: country?.id ?? null,
           },
-          options.locale,
-          options.dryRun
+          options.locale
         )
       : null;
     const city = cityName
-      ? await ensureNamedEntity(
+      ? await findNamedEntity(
           strapi,
           'api::city.city',
           cityName,
@@ -1691,13 +1708,12 @@ export const importLegacyWalks = async (
             province: province?.id ?? null,
             region: region?.id ?? null,
           },
-          options.locale,
-          options.dryRun
+          options.locale
         )
       : null;
     const startCity =
       startCityName && startCityName !== cityName
-        ? await ensureNamedEntity(
+        ? await findNamedEntity(
             strapi,
             'api::city.city',
             startCityName,
@@ -1706,8 +1722,7 @@ export const importLegacyWalks = async (
               province: province?.id ?? null,
               region: region?.id ?? null,
             },
-            options.locale,
-            options.dryRun
+            options.locale
           )
         : city;
     const routeType = routeTypeName
@@ -1783,7 +1798,7 @@ export const importLegacyWalks = async (
       const gpxStartCityName = toStringValue(gpxRow.Start_gemeente) ?? startCityName;
       const gpxStartCity =
         gpxStartCityName && gpxStartCityName !== startCityName
-          ? await ensureNamedEntity(
+          ? await findNamedEntity(
               strapi,
               'api::city.city',
               gpxStartCityName,
@@ -1792,8 +1807,7 @@ export const importLegacyWalks = async (
                 province: province?.id ?? null,
                 region: region?.id ?? null,
               },
-              options.locale,
-              options.dryRun
+              options.locale
             )
           : startCity;
       const gpxPath = await resolveLegacyFile(options.legacyRoot, 'gpx', gpxRow.GPX);
