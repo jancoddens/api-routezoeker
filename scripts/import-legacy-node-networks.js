@@ -148,6 +148,12 @@ run().catch((error) => {
     console.error('Validation details:', JSON.stringify(validationErrors, null, 2));
   }
 
+  if (error?.code === 'ENOENT' && String(error?.path || '').endsWith('config.php')) {
+    console.error(
+      'Legacy config.php niet gevonden. Gebruik --config /pad/naar/config.php of zet LEGACY_CONFIG_PATH en eventueel --legacy-root.'
+    );
+  }
+
   console.error(error);
   process.exit(1);
 });
