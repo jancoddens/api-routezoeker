@@ -332,6 +332,11 @@ const findOneBySlugOrName = async (
   name: string,
   locale?: string
 ) => {
+  const textFilters =
+    uid === 'api::theme.theme'
+      ? [{ slug: { $eq: slug } }, { title: { $eq: name } }]
+      : [{ slug: { $eq: slug } }, { name: { $eq: name } }];
+
   const populate =
     uid === 'api::province.province'
       ? ({
@@ -342,7 +347,7 @@ const findOneBySlugOrName = async (
 
   const entries = await strapi.entityService.findMany(uid, {
     filters: {
-      $or: [{ slug: { $eq: slug } }, { name: { $eq: name } }, { title: { $eq: name } }],
+      $or: textFilters,
     } as never,
     ...(populate ? { populate: populate as never } : {}),
     locale,
