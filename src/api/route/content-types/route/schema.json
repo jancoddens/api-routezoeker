@@ -189,7 +189,7 @@
       "component": "route.route-start-location",
       "repeatable": true
     },
-    "route_end_location": {
+    "route_end_locations": {
       "type": "component",
       "pluginOptions": {
         "i18n": {

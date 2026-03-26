@@ -1405,7 +1405,7 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
-    route_end_location: Schema.Attribute.Component<
+    route_end_locations: Schema.Attribute.Component<
       'route.route-end-location',
       true
     > &

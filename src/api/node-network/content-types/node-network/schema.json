@@ -82,12 +82,12 @@
     },
     "last_import_status": {
       "type": "enumeration",
+      "default": "idle",
       "enum": [
         "idle",
         "success",
         "error"
-      ],
-      "default": "idle"
+      ]
     },
     "last_import_message": {
       "type": "text"
