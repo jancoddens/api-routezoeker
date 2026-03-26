@@ -26,12 +26,6 @@
     "longitude": {
       "type": "decimal"
     },
-    "node_network": {
-      "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::node-network.node-network",
-      "inversedBy": "nodes"
-    },
     "country": {
       "type": "relation",
       "relation": "manyToOne",

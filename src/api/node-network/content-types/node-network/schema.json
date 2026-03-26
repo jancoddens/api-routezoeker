@@ -92,11 +92,71 @@
     "last_import_message": {
       "type": "text"
     },
-    "nodes": {
+    "node_network": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::node-network.node-network",
+      "inversedBy": "node_networks"
+    },
+    "node_networks": {
       "type": "relation",
       "relation": "oneToMany",
-      "target": "api::node.node",
+      "target": "api::node-network.node-network",
       "mappedBy": "node_network"
+    },
+    "content": {
+      "type": "dynamiczone",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "components": [
+        "page-blocks.text-section",
+        "page-blocks.region-slider",
+        "page-blocks.quote",
+        "page-blocks.list",
+        "page-blocks.image-text",
+        "page-blocks.image-gallery",
+        "page-blocks.image-carousel",
+        "page-blocks.hero-banner",
+        "page-blocks.carousel-item",
+        "page-blocks.cards",
+        "page-blocks.article-grid"
+      ]
+    },
+    "distance_km": {
+      "type": "decimal",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "latitude": {
+      "type": "decimal",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "longitude": {
+      "type": "decimal",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "is_virtual": {
+      "type": "boolean",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "default": false
     }
   }
 }

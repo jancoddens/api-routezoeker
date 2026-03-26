@@ -970,34 +970,86 @@ export interface ApiNodeNetworkNodeNetwork extends Struct.CollectionTypeSchema {
     };
   };
   attributes: {
+    content: Schema.Attribute.DynamicZone<
+      [
+        'page-blocks.text-section',
+        'page-blocks.region-slider',
+        'page-blocks.quote',
+        'page-blocks.list',
+        'page-blocks.image-text',
+        'page-blocks.image-gallery',
+        'page-blocks.image-carousel',
+        'page-blocks.hero-banner',
+        'page-blocks.carousel-item',
+        'page-blocks.cards',
+        'page-blocks.article-grid',
+      ]
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     country: Schema.Attribute.Relation<'manyToOne', 'api::country.country'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    distance_km: Schema.Attribute.Decimal &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
         };
       }>;
+    is_virtual: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
     last_import_message: Schema.Attribute.Text;
     last_import_status: Schema.Attribute.Enumeration<
       ['idle', 'success', 'error']
     > &
       Schema.Attribute.DefaultTo<'idle'>;
     last_imported_at: Schema.Attribute.DateTime;
+    latitude: Schema.Attribute.Decimal &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'api::node-network.node-network'
     >;
+    longitude: Schema.Attribute.Decimal &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     name: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
         };
       }>;
-    nodes: Schema.Attribute.Relation<'oneToMany', 'api::node.node'>;
+    node_network: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::node-network.node-network'
+    >;
+    node_networks: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::node-network.node-network'
+    >;
     province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;
     publishedAt: Schema.Attribute.DateTime;
     region: Schema.Attribute.Relation<'manyToOne', 'api::region.region'>;
@@ -1046,10 +1098,6 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
     node_connections_to: Schema.Attribute.Relation<
       'manyToMany',
       'api::node-connection.node-connection'
-    >;
-    node_network: Schema.Attribute.Relation<
-      'manyToOne',
-      'api::node-network.node-network'
     >;
     number: Schema.Attribute.String;
     province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;

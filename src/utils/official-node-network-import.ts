@@ -307,7 +307,7 @@ export const syncOfficialNodeNetwork = async (
       node_network: {
         id: nodeNetwork.id,
       },
-    },
+    } as never,
     fields: ['id', 'external_id', 'number'],
     publicationState: 'preview',
     limit: normalizedNodes.length + 500,
@@ -373,7 +373,7 @@ export const syncOfficialNodeNetwork = async (
       node_network: {
         id: nodeNetwork.id,
       },
-    },
+    } as never,
     fields: ['id', 'external_id'],
     publicationState: 'preview',
     limit: normalizedConnections.length + 500,
