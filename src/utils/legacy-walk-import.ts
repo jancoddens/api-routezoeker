@@ -2077,7 +2077,7 @@ export const importLegacyWalks = async (
       tags: tags.length > 0 ? { connect: tags } : undefined,
       route_start_locations: dedupeStartLocations(startLocations),
       route_nodes: routeNodes,
-      route_end_location: toStringValue(walk.Eind_plaats)
+      route_end_locations: toStringValue(walk.Eind_plaats)
         ? [
             {
               name: toStringValue(walk.Eind_plaats) ?? undefined,
