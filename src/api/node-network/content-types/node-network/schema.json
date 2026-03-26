@@ -125,6 +125,12 @@
         "page-blocks.article-grid"
       ]
     },
+    "routes": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::route.route",
+      "mappedBy": "node_network"
+    },
     "distance_km": {
       "type": "decimal",
       "pluginOptions": {

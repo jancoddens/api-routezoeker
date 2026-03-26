@@ -109,6 +109,11 @@ type LegacyGpxRow = {
   GPX: string | null;
 };
 
+type LegacyWalkNetworkRow = {
+  Wid: number;
+  WNid: number;
+};
+
 type EntityReference = {
   id: number;
   name?: string;
@@ -192,6 +197,7 @@ const WALK_QUERY_COLUMNS = [
 ];
 
 const GPX_QUERY_COLUMNS = ['Wid', 'Titel', 'Start_gemeente', 'Start_plaats', 'Cor1', 'Cor2', 'GPX'];
+const WALK_NETWORK_QUERY_COLUMNS = ['Wid', 'WNid'];
 
 const slugify = (value: string) =>
   value
@@ -1705,7 +1711,33 @@ export const importLegacyWalks = async (
     config,
     buildJsonSelect('GPX', GPX_QUERY_COLUMNS, 'Wid IS NOT NULL')
   )) as LegacyGpxRow[];
+  const walkNetworkRows = (await runMysqlQuery(
+    config,
+    buildJsonSelect('Wandelnetwerken_route', WALK_NETWORK_QUERY_COLUMNS, 'Wid IS NOT NULL AND WNid IS NOT NULL')
+  )) as LegacyWalkNetworkRow[];
   const gpxByWalkId = new Map<number, LegacyGpxRow[]>();
+  const nodeNetworkIdByLegacyId = new Map<number, number>();
+  const walkNetworkLegacyIdByWalkId = new Map<number, number>();
+
+  const nodeNetworks = (await strapi.entityService.findMany('api::node-network.node-network', {
+    fields: ['id', 'source_config'],
+    publicationState: 'preview',
+    locale: options.locale,
+    limit: 500,
+  })) as Array<{ id: number; source_config?: { legacyId?: unknown } | null }>;
+
+  for (const nodeNetwork of nodeNetworks) {
+    const legacyId =
+      nodeNetwork.source_config &&
+      typeof nodeNetwork.source_config === 'object' &&
+      typeof nodeNetwork.source_config.legacyId === 'number'
+        ? nodeNetwork.source_config.legacyId
+        : null;
+
+    if (legacyId !== null) {
+      nodeNetworkIdByLegacyId.set(legacyId, nodeNetwork.id);
+    }
+  }
 
   for (const row of gpxRows) {
     const walkId = Number(row.Wid);
@@ -1717,6 +1749,17 @@ export const importLegacyWalks = async (
     const existing = gpxByWalkId.get(walkId) ?? [];
     existing.push(row);
     gpxByWalkId.set(walkId, existing);
+  }
+
+  for (const row of walkNetworkRows) {
+    const walkId = Number(row.Wid);
+    const legacyNodeNetworkId = Number(row.WNid);
+
+    if (!Number.isFinite(walkId) || !Number.isFinite(legacyNodeNetworkId) || walkNetworkLegacyIdByWalkId.has(walkId)) {
+      continue;
+    }
+
+    walkNetworkLegacyIdByWalkId.set(walkId, legacyNodeNetworkId);
   }
 
   let created = 0;
@@ -2012,6 +2055,9 @@ export const importLegacyWalks = async (
       matchedNodeCoordinates,
       expectedRouteDistanceKm
     );
+    const legacyNodeNetworkId = walkNetworkLegacyIdByWalkId.get(Number(walk.ID));
+    const nodeNetworkId =
+      typeof legacyNodeNetworkId === 'number' ? (nodeNetworkIdByLegacyId.get(legacyNodeNetworkId) ?? null) : null;
     const routeData = stripUndefinedDeep({
       title,
       slug,
@@ -2026,6 +2072,7 @@ export const importLegacyWalks = async (
       cities: city?.id ? { connect: [city.id] } : undefined,
       region: region?.id ?? null,
       theme: walkingTheme?.id ?? null,
+      node_network: nodeNetworkId,
       route_type: routeType?.id ? [routeType.id] : undefined,
       tags: tags.length > 0 ? { connect: tags } : undefined,
       route_start_locations: dedupeStartLocations(startLocations),
