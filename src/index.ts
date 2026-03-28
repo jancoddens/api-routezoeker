@@ -73,7 +73,7 @@ const syncRouteFromGpx = async (
           },
         },
       },
-      route_end_location: {
+      route_end_locations: {
         populate: {
           address: {
             populate: {
@@ -139,7 +139,7 @@ const hasAutofillChanges = (
     excerpt: route.excerpt,
     route_geometry: route.route_geometry,
     route_start_locations: route.route_start_locations,
-    route_end_location: route.route_end_location,
+    route_end_locations: route.route_end_locations,
     route_nodes: route.route_nodes,
   };
 

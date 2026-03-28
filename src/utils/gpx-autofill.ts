@@ -63,7 +63,7 @@ type RouteEntity = {
   knooppunten_afstand?: string | null;
   route_geometry?: unknown;
   route_start_locations?: RouteStartLocation[] | null;
-  route_end_location?: RouteEndLocation[] | null;
+  route_end_locations?: RouteEndLocation[] | null;
   route_waypoints?: RouteWaypoint[] | null;
   route_nodes?: RouteNode[] | null;
 };
@@ -977,8 +977,8 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
   }
 
   const primary = parsedEntries[0];
-  const nextEndLocations = Array.isArray(route.route_end_location)
-    ? route.route_end_location
+  const nextEndLocations = Array.isArray(route.route_end_locations)
+    ? route.route_end_locations
     : [];
 
   const mergedEndLocations =
@@ -1017,7 +1017,7 @@ export const buildRouteAutofill = async (route: RouteEntity, strapi: Core.Strapi
       asText(route.excerpt) || !primary.description ? route.excerpt : primary.description,
     route_geometry: primary.routeGeometry,
     route_start_locations: nextStartLocations,
-    route_end_location: mergedEndLocations,
+    route_end_locations: mergedEndLocations,
     ...(routeNodes.length > 0 ? { route_nodes: routeNodes } : {}),
   };
 };
