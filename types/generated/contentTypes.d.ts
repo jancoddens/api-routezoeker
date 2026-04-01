@@ -594,7 +594,19 @@ export interface ApiBlogPostBlogPost extends Struct.CollectionTypeSchema {
       'api::blog-category.blog-category'
     >;
     content: Schema.Attribute.DynamicZone<
-      ['blog.rich-text', 'blog.quote', 'blog.image']
+      [
+        'page-blocks.text-section',
+        'page-blocks.region-slider',
+        'page-blocks.quote',
+        'page-blocks.list',
+        'page-blocks.image-text',
+        'page-blocks.image-gallery',
+        'page-blocks.image-carousel',
+        'page-blocks.hero-banner',
+        'page-blocks.carousel-item',
+        'page-blocks.cards',
+        'page-blocks.article-grid',
+      ]
     > &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -1053,6 +1065,7 @@ export interface ApiNodeNetworkNodeNetwork extends Struct.CollectionTypeSchema {
     province: Schema.Attribute.Relation<'manyToOne', 'api::province.province'>;
     publishedAt: Schema.Attribute.DateTime;
     region: Schema.Attribute.Relation<'manyToOne', 'api::region.region'>;
+    routes: Schema.Attribute.Relation<'oneToMany', 'api::route.route'>;
     slug: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -1423,6 +1436,10 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
       }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::route.route'>;
+    node_network: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::node-network.node-network'
+    >;
     pdf: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {

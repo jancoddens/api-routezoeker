@@ -92,9 +92,17 @@
         }
       },
       "components": [
-        "blog.rich-text",
-        "blog.quote",
-        "blog.image"
+        "page-blocks.text-section",
+        "page-blocks.region-slider",
+        "page-blocks.quote",
+        "page-blocks.list",
+        "page-blocks.image-text",
+        "page-blocks.image-gallery",
+        "page-blocks.image-carousel",
+        "page-blocks.hero-banner",
+        "page-blocks.carousel-item",
+        "page-blocks.cards",
+        "page-blocks.article-grid"
       ]
     }
   }
