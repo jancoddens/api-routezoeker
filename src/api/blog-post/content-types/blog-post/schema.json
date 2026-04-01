@@ -82,7 +82,7 @@
         }
       },
       "component": "general.seo",
-      "repeatable": true
+      "repeatable": false
     },
     "content": {
       "type": "dynamiczone",

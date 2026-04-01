@@ -642,7 +642,7 @@ export interface ApiBlogPostBlogPost extends Struct.CollectionTypeSchema {
       'api::blog-post.blog-post'
     >;
     publishedAt: Schema.Attribute.DateTime;
-    seo: Schema.Attribute.Component<'general.seo', true> &
+    seo: Schema.Attribute.Component<'general.seo', false> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
