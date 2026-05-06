@@ -6,12 +6,15 @@ const path = require('node:path');
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
 
 const DEFAULT_LEGACY_ROOT = '/Users/jancoddens/Documents/Websites/Routezoeker.com/V4';
+const legacyRoot = process.env.LEGACY_ROOT || DEFAULT_LEGACY_ROOT;
+const configPath = process.env.LEGACY_CONFIG || path.join(legacyRoot, 'config.php');
+const bikeTable = process.env.LEGACY_BIKE_TABLE;
 
 const parseArgs = () => {
   const rawArgs = process.argv.slice(2);
   const options = {
-    configPath: path.join(DEFAULT_LEGACY_ROOT, 'config.php'),
-    legacyRoot: DEFAULT_LEGACY_ROOT,
+    configPath,
+    legacyRoot,
     locale: undefined,
     limit: undefined,
     offset: undefined,
@@ -21,6 +24,7 @@ const parseArgs = () => {
     userOverride: undefined,
     passwordOverride: undefined,
     databaseOverride: undefined,
+    bikeTable,
   };
 
   for (let index = 0; index < rawArgs.length; index += 1) {
@@ -87,6 +91,12 @@ const parseArgs = () => {
 
     if (arg === '--database') {
       options.databaseOverride = rawArgs[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--table' || arg === '--bike-table') {
+      options.bikeTable = rawArgs[index + 1];
       index += 1;
       continue;
     }

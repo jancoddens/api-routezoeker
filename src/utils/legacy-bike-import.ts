@@ -59,6 +59,7 @@ type ImportOptions = {
   userOverride?: string;
   passwordOverride?: string;
   databaseOverride?: string;
+  bikeTable?: string;
 };
 
 type LegacyBikeRow = {
@@ -820,6 +821,8 @@ const parsePhpConfig = async (configPath: string): Promise<LegacyDbConfig> => {
 
 const escapeSqlString = (value: string) => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
+const escapeSqlIdentifier = (value: string) => `\`${value.replace(/`/g, '``')}\``;
+
 const buildJsonSelect = (
   table: string,
   columns: string[],
@@ -829,12 +832,12 @@ const buildJsonSelect = (
   orderBy?: string
 ) => {
   const jsonPairs = columns
-    .map((column) => `'${column}', ${column}`)
+    .map((column) => `'${column}', ${escapeSqlIdentifier(column)}`)
     .join(', ');
 
   return [
     `SELECT JSON_OBJECT(${jsonPairs})`,
-    `FROM ${table}`,
+    `FROM ${escapeSqlIdentifier(table)}`,
     whereClause ? `WHERE ${whereClause}` : '',
     orderBy ? `ORDER BY ${orderBy}` : '',
     limit && limit > 0 ? `LIMIT ${limit}` : '',
@@ -910,6 +913,15 @@ const runMysqlRawRows = async (config: LegacyDbConfig, sql: string) => {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => line.split('\t'));
+};
+
+const getExistingTableNames = async (config: LegacyDbConfig) => {
+  try {
+    const rows = await runMysqlRawRows(config, 'SHOW TABLES');
+    return rows.map((row) => row[0]).filter(Boolean);
+  } catch {
+    return [];
+  }
 };
 
 const findOneBySlugOrName = async (
@@ -1827,12 +1839,12 @@ export const importLegacyBikes = async (
   const bikes = (await runMysqlQuery(
     config,
     buildJsonSelect(
-      'Fietsroutes',
+      options.bikeTable ?? 'Fietsen',
       BIKE_QUERY_COLUMNS,
-      "Status = 1 AND URL != ''",
+      "`Status` = 1 AND `URL` != ''",
       options.limit,
       options.offset,
-      'ID ASC'
+      '`ID` ASC'
     )
   )) as LegacyBikeRow[];
   const gpxRows = await findLegacyBikeGpxRows(config);

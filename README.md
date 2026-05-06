@@ -225,6 +225,15 @@ Optional overrides:
 
 ```bash
 npm run import:legacy-bikes -- --config /path/to/config.php --legacy-root /path/to/legacy/site --host 127.0.0.1
+npm run import:legacy-bikes -- --table Fietsen
+```
+
+Server defaults can also be set with environment variables:
+
+```bash
+LEGACY_ROOT=/path/to/legacy/site npm run import:legacy-bikes -- --dry-run --limit 1
+LEGACY_CONFIG=/path/to/config.php LEGACY_ROOT=/path/to/legacy/site npm run import:legacy-bikes -- --dry-run --limit 1
+LEGACY_BIKE_TABLE=Fietsen npm run import:legacy-bikes -- --dry-run --limit 1
 ```
 
 Batch import with offsets:
