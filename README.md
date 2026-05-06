@@ -204,3 +204,33 @@ npm run import:legacy-walks -- --limit 10 --offset 0
 npm run import:legacy-walks -- --limit 10 --offset 10
 npm run import:legacy-walks -- --limit 10 --offset 20
 ```
+
+## Legacy bike import
+
+This project can import legacy cycling routes from the old Routezoeker MySQL database and local media folders.
+
+Dry run:
+
+```bash
+npm run import:legacy-bikes -- --dry-run --limit 5
+```
+
+Import:
+
+```bash
+npm run import:legacy-bikes
+```
+
+Optional overrides:
+
+```bash
+npm run import:legacy-bikes -- --config /path/to/config.php --legacy-root /path/to/legacy/site --host 127.0.0.1
+```
+
+Batch import with offsets:
+
+```bash
+npm run import:legacy-bikes -- --limit 10 --offset 0
+npm run import:legacy-bikes -- --limit 10 --offset 10
+npm run import:legacy-bikes -- --limit 10 --offset 20
+```

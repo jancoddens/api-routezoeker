@@ -12,6 +12,7 @@
     "import:belgian-cities": "node scripts/import-belgian-cities.js",
     "import:dutch-cities": "node scripts/import-dutch-cities.js",
     "import:legacy-node-networks": "node scripts/import-legacy-node-networks.js",
+    "import:legacy-bikes": "node scripts/import-legacy-bikes.js",
     "import:legacy-walks": "node scripts/import-legacy-walks.js",
     "import:node-network": "node scripts/import-node-network.js",
     "start": "strapi start",

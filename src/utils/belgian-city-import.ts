@@ -129,7 +129,7 @@ type LegacyCorsRow = {
 
 const REGION_DEFINITIONS = [
   { name: 'Vlaanderen', slug: 'vlaanderen' },
-  { name: 'Wallonie', slug: 'wallonie' },
+  { name: 'Wallonië', slug: 'wallonie' },
   { name: 'Brussels Hoofdstedelijk Gewest', slug: 'brussels-hoofdstedelijk-gewest' },
 ] as const;
 
