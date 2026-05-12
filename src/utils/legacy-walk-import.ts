@@ -2073,7 +2073,7 @@ export const importLegacyWalks = async (
       region: region?.id ?? null,
       theme: walkingTheme?.id ?? null,
       node_network: nodeNetworkId,
-      route_type: routeType?.id ? [routeType.id] : undefined,
+      route_type: routeType?.id ? { connect: [routeType.id] } : undefined,
       tags: tags.length > 0 ? { connect: tags } : undefined,
       route_start_locations: dedupeStartLocations(startLocations),
       route_nodes: routeNodes,
