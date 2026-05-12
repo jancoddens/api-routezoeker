@@ -10,6 +10,16 @@ const legacyRoot = process.env.LEGACY_ROOT || DEFAULT_LEGACY_ROOT;
 const configPath = process.env.LEGACY_CONFIG || path.join(legacyRoot, 'config.php');
 const bikeTable = process.env.LEGACY_BIKE_TABLE;
 
+const isShutdownAbortError = (error) => error?.message === 'aborted';
+
+process.on('unhandledRejection', (error) => {
+  if (isShutdownAbortError(error)) {
+    return;
+  }
+
+  throw error;
+});
+
 const parseArgs = () => {
   const rawArgs = process.argv.slice(2);
   const options = {
@@ -126,7 +136,7 @@ const run = async () => {
     try {
       await strapi.destroy();
     } catch (error) {
-      if (!importError && error?.message !== 'aborted') {
+      if (!importError && !isShutdownAbortError(error)) {
         throw error;
       }
     }

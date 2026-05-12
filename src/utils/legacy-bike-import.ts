@@ -2086,17 +2086,24 @@ export const importLegacyBikes = async (
         )
       : null;
     const routeMarkings: Array<Record<string, unknown>> = [];
+    const signName = toStringValue(bike.Sign);
+    const hasNodeMarking = toBooleanValue(bike.T_Knooppunten);
+    const signIsNodeMarking = signName ? slugify(signName) === 'knooppunten' : false;
+    const shouldAddSymbolMarking =
+      Boolean(markingImage) ||
+      (!hasNodeMarking && (Boolean(signName) || Boolean(toStringValue(bike.Color)) || toBooleanValue(bike.T_Bewegwijzerd))) ||
+      (hasNodeMarking && Boolean(signName) && !signIsNodeMarking);
 
-    if (markingImage || toStringValue(bike.Sign) || toStringValue(bike.Color) || toBooleanValue(bike.T_Bewegwijzerd)) {
+    if (shouldAddSymbolMarking) {
       routeMarkings.push({
-        name: toStringValue(bike.Sign) ?? 'Bewegwijzering',
+        name: signName ?? 'Bewegwijzering',
         marking_type: 'symbol',
         color: toStringValue(bike.Color) ?? undefined,
         image: markingImage?.id ?? null,
       });
     }
 
-    if (toBooleanValue(bike.T_Knooppunten)) {
+    if (hasNodeMarking) {
       routeMarkings.push({
         name: 'Knooppunten',
         marking_type: 'knooppunten',
