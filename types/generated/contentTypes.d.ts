@@ -1307,6 +1307,8 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
         'Hotel',
         'Camping',
         'B&B',
+        'Vakantieverblijf',
+        'Appartement',
         'Caf\u00E9',
         'Restaurant',
         'Popup_bar',
