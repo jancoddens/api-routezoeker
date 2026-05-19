@@ -18,6 +18,15 @@
         "List location",
         "Carousel"
       ]
+    },
+    "universe": {
+      "type": "enumeration",
+      "default": "All",
+      "enum": [
+        "All",
+        "Logie",
+        "Horeca"
+      ]
     }
   },
   "config": {}

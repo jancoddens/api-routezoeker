@@ -153,6 +153,8 @@ export interface PageBlocksPartner extends Struct.ComponentSchema {
     type: Schema.Attribute.Enumeration<
       ['List full', 'List location', 'Carousel']
     >;
+    universe: Schema.Attribute.Enumeration<['All', 'Logie', 'Horeca']> &
+      Schema.Attribute.DefaultTo<'All'>;
   };
 }
 
