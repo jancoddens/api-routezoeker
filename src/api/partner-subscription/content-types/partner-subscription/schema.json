@@ -1,0 +1,78 @@
+{
+  "kind": "collectionType",
+  "collectionName": "partner_subscriptions",
+  "info": {
+    "singularName": "partner-subscription",
+    "pluralName": "partner-subscriptions",
+    "displayName": "Partner_subscription"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "partner": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::partner.partner",
+      "inversedBy": "partner_subscription"
+    },
+    "status_subscription": {
+      "type": "enumeration",
+      "default": "active",
+      "enum": [
+        "draft",
+        "active",
+        "paused",
+        "expired"
+      ]
+    },
+    "start_date": {
+      "type": "date"
+    },
+    "end_date": {
+      "type": "date"
+    },
+    "package": {
+      "type": "enumeration",
+      "enum": [
+        "Free",
+        "Starter",
+        "Pro",
+        "Full",
+        "Folder"
+      ]
+    },
+    "priority": {
+      "type": "integer"
+    },
+    "routes": {
+      "type": "integer",
+      "default": 30
+    },
+    "notes": {
+      "type": "text"
+    },
+    "run_count": {
+      "type": "integer"
+    },
+    "first_run": {
+      "type": "date"
+    },
+    "last_run": {
+      "type": "date"
+    },
+    "last_invoice": {
+      "type": "string"
+    },
+    "discount": {
+      "type": "integer"
+    },
+    "contact_email": {
+      "type": "string"
+    },
+    "contact_phone": {
+      "type": "string"
+    }
+  }
+}

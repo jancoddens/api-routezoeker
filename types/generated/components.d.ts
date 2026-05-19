@@ -185,6 +185,32 @@ export interface PageBlocksTextSection extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksUps extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_ups';
+  info: {
+    displayName: 'usp';
+  };
+  attributes: {
+    icon: Schema.Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
+    text: Schema.Attribute.String;
+  };
+}
+
+export interface PageBlocksUspList extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_usp_lists';
+  info: {
+    displayName: 'usp_list';
+  };
+  attributes: {
+    sub_title: Schema.Attribute.String;
+    title: Schema.Attribute.String;
+    usp: Schema.Attribute.Component<'page-blocks.ups', true>;
+  };
+}
+
 export interface RouteRouteEndLocation extends Struct.ComponentSchema {
   collectionName: 'components_route_route_end_locations';
   info: {
@@ -327,6 +353,8 @@ declare module '@strapi/strapi' {
       'page-blocks.quote': PageBlocksQuote;
       'page-blocks.region-slider': PageBlocksRegionSlider;
       'page-blocks.text-section': PageBlocksTextSection;
+      'page-blocks.ups': PageBlocksUps;
+      'page-blocks.usp-list': PageBlocksUspList;
       'route.route-end-location': RouteRouteEndLocation;
       'route.route-markings': RouteRouteMarkings;
       'route.route-nodes': RouteRouteNodes;

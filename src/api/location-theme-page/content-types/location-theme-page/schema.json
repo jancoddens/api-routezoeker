@@ -104,7 +104,10 @@
         "page-blocks.cards",
         "page-blocks.article-grid",
         "page-blocks.list",
-        "page-blocks.region-slider"
+        "page-blocks.region-slider",
+        "page-blocks.usp-list",
+        "page-blocks.ups",
+        "page-blocks.carousel-item"
       ]
     }
   }

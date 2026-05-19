@@ -606,6 +606,8 @@ export interface ApiBlogPostBlogPost extends Struct.CollectionTypeSchema {
         'page-blocks.carousel-item',
         'page-blocks.cards',
         'page-blocks.article-grid',
+        'page-blocks.usp-list',
+        'page-blocks.ups',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
@@ -873,6 +875,9 @@ export interface ApiLocationThemePageLocationThemePage
         'page-blocks.article-grid',
         'page-blocks.list',
         'page-blocks.region-slider',
+        'page-blocks.usp-list',
+        'page-blocks.ups',
+        'page-blocks.carousel-item',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
@@ -1118,6 +1123,210 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+  };
+}
+
+export interface ApiPartnerSubscriptionPartnerSubscription
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'partner_subscriptions';
+  info: {
+    displayName: 'Partner_subscription';
+    pluralName: 'partner-subscriptions';
+    singularName: 'partner-subscription';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    contact_email: Schema.Attribute.String;
+    contact_phone: Schema.Attribute.String;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    discount: Schema.Attribute.Integer;
+    end_date: Schema.Attribute.Date;
+    first_run: Schema.Attribute.Date;
+    last_invoice: Schema.Attribute.String;
+    last_run: Schema.Attribute.Date;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::partner-subscription.partner-subscription'
+    > &
+      Schema.Attribute.Private;
+    notes: Schema.Attribute.Text;
+    package: Schema.Attribute.Enumeration<
+      ['Free', 'Starter', 'Pro', 'Full', 'Folder']
+    >;
+    partner: Schema.Attribute.Relation<'oneToOne', 'api::partner.partner'>;
+    priority: Schema.Attribute.Integer;
+    publishedAt: Schema.Attribute.DateTime;
+    routes: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<30>;
+    run_count: Schema.Attribute.Integer;
+    start_date: Schema.Attribute.Date;
+    status_subscription: Schema.Attribute.Enumeration<
+      ['draft', 'active', 'paused', 'expired']
+    > &
+      Schema.Attribute.DefaultTo<'active'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
+  collectionName: 'partners';
+  info: {
+    displayName: 'Partner';
+    pluralName: 'partners';
+    singularName: 'partner';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    address: Schema.Attribute.Component<'shared.address', true> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    booking_url: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    content: Schema.Attribute.DynamicZone<
+      [
+        'page-blocks.text-section',
+        'page-blocks.region-slider',
+        'page-blocks.quote',
+        'page-blocks.list',
+        'page-blocks.image-text',
+        'page-blocks.image-gallery',
+        'page-blocks.image-carousel',
+        'page-blocks.hero-banner',
+        'page-blocks.carousel-item',
+        'page-blocks.cards',
+        'page-blocks.article-grid',
+        'page-blocks.usp-list',
+        'page-blocks.ups',
+      ]
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    cover_image: Schema.Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios'
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Text &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    email: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    gallery: Schema.Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::partner.partner'
+    >;
+    logo: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    name: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    partner_subscription: Schema.Attribute.Relation<
+      'oneToOne',
+      'api::partner-subscription.partner-subscription'
+    >;
+    phone: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    publishedAt: Schema.Attribute.DateTime;
+    seo: Schema.Attribute.Component<'general.seo', false> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    short_description: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    slug: Schema.Attribute.UID &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    type: Schema.Attribute.Enumeration<
+      [
+        'Hotel',
+        'Camping',
+        'B&B',
+        'Caf\u00E9',
+        'Restaurant',
+        'Popup_bar',
+        'Bike_rental',
+      ]
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    website_url: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
   };
 }
 
@@ -2180,6 +2389,8 @@ declare module '@strapi/strapi' {
       'api::node-connection.node-connection': ApiNodeConnectionNodeConnection;
       'api::node-network.node-network': ApiNodeNetworkNodeNetwork;
       'api::node.node': ApiNodeNode;
+      'api::partner-subscription.partner-subscription': ApiPartnerSubscriptionPartnerSubscription;
+      'api::partner.partner': ApiPartnerPartner;
       'api::province.province': ApiProvinceProvince;
       'api::region.region': ApiRegionRegion;
       'api::route-type.route-type': ApiRouteTypeRouteType;

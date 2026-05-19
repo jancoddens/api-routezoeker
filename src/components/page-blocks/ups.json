@@ -1,0 +1,23 @@
+{
+  "collectionName": "components_page_blocks_ups",
+  "info": {
+    "displayName": "usp"
+  },
+  "options": {},
+  "attributes": {
+    "text": {
+      "type": "string"
+    },
+    "icon": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    }
+  },
+  "config": {}
+}

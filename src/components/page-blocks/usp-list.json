@@ -1,0 +1,21 @@
+{
+  "collectionName": "components_page_blocks_usp_lists",
+  "info": {
+    "displayName": "usp_list"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "sub_title": {
+      "type": "string"
+    },
+    "usp": {
+      "type": "component",
+      "component": "page-blocks.ups",
+      "repeatable": true
+    }
+  },
+  "config": {}
+}
