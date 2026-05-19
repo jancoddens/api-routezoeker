@@ -31,6 +31,19 @@
         }
       }
     },
+    "universe": {
+      "type": "enumeration",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "default": "Logie",
+      "enum": [
+        "Logie",
+        "Horeca"
+      ]
+    },
     "type": {
       "type": "enumeration",
       "pluginOptions": {

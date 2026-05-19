@@ -1322,6 +1322,13 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    universe: Schema.Attribute.Enumeration<['Logie', 'Horeca']> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<'Logie'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
