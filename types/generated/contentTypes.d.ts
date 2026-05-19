@@ -1159,6 +1159,7 @@ export interface ApiPartnerSubscriptionPartnerSubscription
       ['Free', 'Starter', 'Pro', 'Full', 'Folder']
     >;
     partner: Schema.Attribute.Relation<'oneToOne', 'api::partner.partner'>;
+    price: Schema.Attribute.Decimal;
     priority: Schema.Attribute.Integer;
     publishedAt: Schema.Attribute.DateTime;
     routes: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<30>;

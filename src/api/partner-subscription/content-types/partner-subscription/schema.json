@@ -65,6 +65,9 @@
     "last_invoice": {
       "type": "string"
     },
+    "price": {
+      "type": "decimal"
+    },
     "discount": {
       "type": "integer"
     },
