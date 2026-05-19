@@ -4,7 +4,7 @@
   "info": {
     "singularName": "node-network",
     "pluralName": "node-networks",
-    "displayName": "node_network"
+    "displayName": "Node_network"
   },
   "options": {
     "draftAndPublish": true

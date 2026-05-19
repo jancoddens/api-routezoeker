@@ -4,7 +4,7 @@
   "info": {
     "singularName": "node",
     "pluralName": "nodes",
-    "displayName": "node"
+    "displayName": "Node"
   },
   "options": {
     "draftAndPublish": false

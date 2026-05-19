@@ -4,7 +4,7 @@
   "info": {
     "singularName": "node-connection",
     "pluralName": "node-connections",
-    "displayName": "node_connection"
+    "displayName": "Node_connection"
   },
   "options": {
     "draftAndPublish": false

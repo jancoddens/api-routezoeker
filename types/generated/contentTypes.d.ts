@@ -938,7 +938,7 @@ export interface ApiNodeConnectionNodeConnection
   extends Struct.CollectionTypeSchema {
   collectionName: 'node_connections';
   info: {
-    displayName: 'node_connection';
+    displayName: 'Node_connection';
     pluralName: 'node-connections';
     singularName: 'node-connection';
   };
@@ -974,7 +974,7 @@ export interface ApiNodeConnectionNodeConnection
 export interface ApiNodeNetworkNodeNetwork extends Struct.CollectionTypeSchema {
   collectionName: 'node_networks';
   info: {
-    displayName: 'node_network';
+    displayName: 'Node_network';
     pluralName: 'node-networks';
     singularName: 'node-network';
   };
@@ -1089,7 +1089,7 @@ export interface ApiNodeNetworkNodeNetwork extends Struct.CollectionTypeSchema {
 export interface ApiNodeNode extends Struct.CollectionTypeSchema {
   collectionName: 'nodes';
   info: {
-    displayName: 'node';
+    displayName: 'Node';
     pluralName: 'nodes';
     singularName: 'node';
   };
@@ -1129,7 +1129,7 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
 export interface ApiPagePage extends Struct.CollectionTypeSchema {
   collectionName: 'pages';
   info: {
-    displayName: 'page';
+    displayName: 'Page';
     pluralName: 'pages';
     singularName: 'page';
   };
