@@ -142,6 +142,20 @@ export interface PageBlocksList extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksPartner extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_partners';
+  info: {
+    displayName: 'partner';
+  };
+  attributes: {
+    subtitle: Schema.Attribute.String;
+    title: Schema.Attribute.String;
+    type: Schema.Attribute.Enumeration<
+      ['List full', 'List location', 'Carousel']
+    >;
+  };
+}
+
 export interface PageBlocksQuote extends Struct.ComponentSchema {
   collectionName: 'components_page_blocks_quotes';
   info: {
@@ -350,6 +364,7 @@ declare module '@strapi/strapi' {
       'page-blocks.image-gallery': PageBlocksImageGallery;
       'page-blocks.image-text': PageBlocksImageText;
       'page-blocks.list': PageBlocksList;
+      'page-blocks.partner': PageBlocksPartner;
       'page-blocks.quote': PageBlocksQuote;
       'page-blocks.region-slider': PageBlocksRegionSlider;
       'page-blocks.text-section': PageBlocksTextSection;

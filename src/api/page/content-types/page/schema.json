@@ -1,0 +1,69 @@
+{
+  "kind": "collectionType",
+  "collectionName": "pages",
+  "info": {
+    "singularName": "page",
+    "pluralName": "pages",
+    "displayName": "page"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "slug": {
+      "type": "uid",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "seo": {
+      "type": "component",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "component": "general.seo",
+      "repeatable": false
+    },
+    "content": {
+      "type": "dynamiczone",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "components": [
+        "page-blocks.usp-list",
+        "page-blocks.ups",
+        "page-blocks.text-section",
+        "page-blocks.region-slider",
+        "page-blocks.quote",
+        "page-blocks.list",
+        "page-blocks.image-text",
+        "page-blocks.image-gallery",
+        "page-blocks.image-carousel",
+        "page-blocks.hero-banner",
+        "page-blocks.carousel-item",
+        "page-blocks.cards",
+        "page-blocks.article-grid",
+        "page-blocks.partner"
+      ]
+    }
+  }
+}

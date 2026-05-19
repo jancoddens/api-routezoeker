@@ -1126,6 +1126,75 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiPagePage extends Struct.CollectionTypeSchema {
+  collectionName: 'pages';
+  info: {
+    displayName: 'page';
+    pluralName: 'pages';
+    singularName: 'page';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    content: Schema.Attribute.DynamicZone<
+      [
+        'page-blocks.usp-list',
+        'page-blocks.ups',
+        'page-blocks.text-section',
+        'page-blocks.region-slider',
+        'page-blocks.quote',
+        'page-blocks.list',
+        'page-blocks.image-text',
+        'page-blocks.image-gallery',
+        'page-blocks.image-carousel',
+        'page-blocks.hero-banner',
+        'page-blocks.carousel-item',
+        'page-blocks.cards',
+        'page-blocks.article-grid',
+        'page-blocks.partner',
+      ]
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::page.page'>;
+    publishedAt: Schema.Attribute.DateTime;
+    seo: Schema.Attribute.Component<'general.seo', false> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    slug: Schema.Attribute.UID &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    title: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiPartnerSubscriptionPartnerSubscription
   extends Struct.CollectionTypeSchema {
   collectionName: 'partner_subscriptions';
@@ -2401,6 +2470,7 @@ declare module '@strapi/strapi' {
       'api::node-connection.node-connection': ApiNodeConnectionNodeConnection;
       'api::node-network.node-network': ApiNodeNetworkNodeNetwork;
       'api::node.node': ApiNodeNode;
+      'api::page.page': ApiPagePage;
       'api::partner-subscription.partner-subscription': ApiPartnerSubscriptionPartnerSubscription;
       'api::partner.partner': ApiPartnerPartner;
       'api::province.province': ApiProvinceProvince;

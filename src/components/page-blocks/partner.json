@@ -1,0 +1,24 @@
+{
+  "collectionName": "components_page_blocks_partners",
+  "info": {
+    "displayName": "partner"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "List full",
+        "List location",
+        "Carousel"
+      ]
+    }
+  },
+  "config": {}
+}
