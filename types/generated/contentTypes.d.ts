@@ -1313,6 +1313,8 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
         'Restaurant',
         'Popup_bar',
         'Bike_rental',
+        'Kasteel',
+        'Dagverblijf',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
