@@ -1382,7 +1382,7 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
         'Appartement',
         'Caf\u00E9',
         'Restaurant',
-        'Popup_bar',
+        'Popup bar',
         'Bike_rental',
         'Kasteel',
         'Dagverblijf',
