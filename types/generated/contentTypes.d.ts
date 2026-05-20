@@ -878,6 +878,7 @@ export interface ApiLocationThemePageLocationThemePage
         'page-blocks.usp-list',
         'page-blocks.ups',
         'page-blocks.carousel-item',
+        'page-blocks.partner',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
