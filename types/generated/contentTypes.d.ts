@@ -1162,6 +1162,7 @@ export interface ApiPagePage extends Struct.CollectionTypeSchema {
         'page-blocks.cards',
         'page-blocks.article-grid',
         'page-blocks.partner',
+        'page-blocks.search',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{

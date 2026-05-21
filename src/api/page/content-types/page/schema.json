@@ -62,7 +62,8 @@
         "page-blocks.carousel-item",
         "page-blocks.cards",
         "page-blocks.article-grid",
-        "page-blocks.partner"
+        "page-blocks.partner",
+        "page-blocks.search"
       ]
     }
   }
