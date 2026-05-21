@@ -1,0 +1,27 @@
+{
+  "collectionName": "components_page_blocks_searches",
+  "info": {
+    "displayName": "search"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "text_button": {
+      "type": "string"
+    },
+    "text_search": {
+      "type": "string"
+    },
+    "themes": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::theme.theme"
+    }
+  },
+  "config": {}
+}

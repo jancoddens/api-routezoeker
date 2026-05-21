@@ -185,6 +185,20 @@ export interface PageBlocksRegionSlider extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksSearch extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_searches';
+  info: {
+    displayName: 'search';
+  };
+  attributes: {
+    subtitle: Schema.Attribute.String;
+    text_button: Schema.Attribute.String;
+    text_search: Schema.Attribute.String;
+    themes: Schema.Attribute.Relation<'oneToMany', 'api::theme.theme'>;
+    title: Schema.Attribute.String;
+  };
+}
+
 export interface PageBlocksTextSection extends Struct.ComponentSchema {
   collectionName: 'components_page_blocks_text_sections';
   info: {
@@ -369,6 +383,7 @@ declare module '@strapi/strapi' {
       'page-blocks.partner': PageBlocksPartner;
       'page-blocks.quote': PageBlocksQuote;
       'page-blocks.region-slider': PageBlocksRegionSlider;
+      'page-blocks.search': PageBlocksSearch;
       'page-blocks.text-section': PageBlocksTextSection;
       'page-blocks.ups': PageBlocksUps;
       'page-blocks.usp-list': PageBlocksUspList;
