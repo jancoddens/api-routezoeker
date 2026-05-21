@@ -108,7 +108,8 @@
         "page-blocks.usp-list",
         "page-blocks.ups",
         "page-blocks.carousel-item",
-        "page-blocks.partner"
+        "page-blocks.partner",
+        "page-blocks.search"
       ]
     }
   }

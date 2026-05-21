@@ -608,6 +608,8 @@ export interface ApiBlogPostBlogPost extends Struct.CollectionTypeSchema {
         'page-blocks.article-grid',
         'page-blocks.usp-list',
         'page-blocks.ups',
+        'page-blocks.search',
+        'page-blocks.partner',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
@@ -879,6 +881,7 @@ export interface ApiLocationThemePageLocationThemePage
         'page-blocks.ups',
         'page-blocks.carousel-item',
         'page-blocks.partner',
+        'page-blocks.search',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
@@ -1288,6 +1291,8 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
         'page-blocks.article-grid',
         'page-blocks.usp-list',
         'page-blocks.ups',
+        'page-blocks.search',
+        'page-blocks.partner',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{

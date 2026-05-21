@@ -188,7 +188,9 @@
         "page-blocks.cards",
         "page-blocks.article-grid",
         "page-blocks.usp-list",
-        "page-blocks.ups"
+        "page-blocks.ups",
+        "page-blocks.search",
+        "page-blocks.partner"
       ]
     },
     "seo": {
