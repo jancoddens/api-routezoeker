@@ -323,6 +323,31 @@
       },
       "component": "route.route-nodes",
       "repeatable": true
+    },
+    "long_description": {
+      "type": "dynamiczone",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "components": [
+        "page-blocks.usp-list",
+        "page-blocks.ups",
+        "page-blocks.text-section",
+        "page-blocks.search",
+        "page-blocks.region-slider",
+        "page-blocks.quote",
+        "page-blocks.partner",
+        "page-blocks.list",
+        "page-blocks.image-text",
+        "page-blocks.image-gallery",
+        "page-blocks.image-carousel",
+        "page-blocks.hero-banner",
+        "page-blocks.carousel-item",
+        "page-blocks.cards",
+        "page-blocks.article-grid"
+      ]
     }
   }
 }

@@ -847,6 +847,94 @@ export interface ApiCountryCountry extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiFaqCategoryFaqCategory extends Struct.CollectionTypeSchema {
+  collectionName: 'faq_categories';
+  info: {
+    displayName: 'Faq Category';
+    pluralName: 'faq-categories';
+    singularName: 'faq-category';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Blocks &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    faqs: Schema.Attribute.Relation<'manyToMany', 'api::faq.faq'>;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::faq-category.faq-category'
+    >;
+    publishedAt: Schema.Attribute.DateTime;
+    title: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiFaqFaq extends Struct.CollectionTypeSchema {
+  collectionName: 'faqs';
+  info: {
+    displayName: 'Faq';
+    pluralName: 'faqs';
+    singularName: 'faq';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    answer: Schema.Attribute.Blocks &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    faq_categories: Schema.Attribute.Relation<
+      'manyToMany',
+      'api::faq-category.faq-category'
+    >;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::faq.faq'>;
+    publishedAt: Schema.Attribute.DateTime;
+    question: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiLocationThemePageLocationThemePage
   extends Struct.CollectionTypeSchema {
   collectionName: 'location_theme_pages';
@@ -1739,6 +1827,30 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
       }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::route.route'>;
+    long_description: Schema.Attribute.DynamicZone<
+      [
+        'page-blocks.usp-list',
+        'page-blocks.ups',
+        'page-blocks.text-section',
+        'page-blocks.search',
+        'page-blocks.region-slider',
+        'page-blocks.quote',
+        'page-blocks.partner',
+        'page-blocks.list',
+        'page-blocks.image-text',
+        'page-blocks.image-gallery',
+        'page-blocks.image-carousel',
+        'page-blocks.hero-banner',
+        'page-blocks.carousel-item',
+        'page-blocks.cards',
+        'page-blocks.article-grid',
+      ]
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     node_network: Schema.Attribute.Relation<
       'manyToOne',
       'api::node-network.node-network'
@@ -2479,6 +2591,8 @@ declare module '@strapi/strapi' {
       'api::blog-post.blog-post': ApiBlogPostBlogPost;
       'api::city.city': ApiCityCity;
       'api::country.country': ApiCountryCountry;
+      'api::faq-category.faq-category': ApiFaqCategoryFaqCategory;
+      'api::faq.faq': ApiFaqFaq;
       'api::location-theme-page.location-theme-page': ApiLocationThemePageLocationThemePage;
       'api::node-connection.node-connection': ApiNodeConnectionNodeConnection;
       'api::node-network.node-network': ApiNodeNetworkNodeNetwork;
