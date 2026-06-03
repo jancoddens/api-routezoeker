@@ -32,6 +32,15 @@
         "right"
       ]
     },
+    "image_width": {
+      "type": "enumeration",
+      "default": "C 6/12",
+      "enum": [
+        "A 3/12",
+        "B 4/12",
+        "C 6/12"
+      ]
+    },
     "button_label": {
       "type": "string"
     },

@@ -125,6 +125,8 @@ export interface PageBlocksImageText extends Struct.ComponentSchema {
     image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
     image_position: Schema.Attribute.Enumeration<['left', 'right']> &
       Schema.Attribute.DefaultTo<'right'>;
+    image_width: Schema.Attribute.Enumeration<['A 3/12', 'B 4/12', 'C 6/12']> &
+      Schema.Attribute.DefaultTo<'C 6/12'>;
     title: Schema.Attribute.String;
   };
 }
