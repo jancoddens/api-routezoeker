@@ -208,6 +208,12 @@
       "relation": "oneToOne",
       "target": "api::partner-subscription.partner-subscription",
       "mappedBy": "partner"
+    },
+    "pois": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::poi.poi",
+      "inversedBy": "partners"
     }
   }
 }

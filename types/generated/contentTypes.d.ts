@@ -1454,6 +1454,7 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    pois: Schema.Attribute.Relation<'manyToMany', 'api::poi.poi'>;
     publishedAt: Schema.Attribute.DateTime;
     seo: Schema.Attribute.Component<'general.seo', false> &
       Schema.Attribute.SetPluginOptions<{
@@ -1509,6 +1510,74 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+  };
+}
+
+export interface ApiPoiPoi extends Struct.CollectionTypeSchema {
+  collectionName: 'pois';
+  info: {
+    displayName: 'POI';
+    pluralName: 'pois';
+    singularName: 'poi';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    address: Schema.Attribute.Component<'shared.address', true> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Blocks &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    link: Schema.Attribute.Component<'general.link', false> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::poi.poi'>;
+    partners: Schema.Attribute.Relation<'manyToMany', 'api::partner.partner'>;
+    publishedAt: Schema.Attribute.DateTime;
+    routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
+    title: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    type: Schema.Attribute.Enumeration<
+      ['Gebouwen', 'Locaties', 'Wandelnetwerken']
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
   };
 }
 
@@ -1861,6 +1930,7 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    pois: Schema.Attribute.Relation<'manyToMany', 'api::poi.poi'>;
     popularity_score: Schema.Attribute.Decimal &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -2600,6 +2670,7 @@ declare module '@strapi/strapi' {
       'api::page.page': ApiPagePage;
       'api::partner-subscription.partner-subscription': ApiPartnerSubscriptionPartnerSubscription;
       'api::partner.partner': ApiPartnerPartner;
+      'api::poi.poi': ApiPoiPoi;
       'api::province.province': ApiProvinceProvince;
       'api::region.region': ApiRegionRegion;
       'api::route-type.route-type': ApiRouteTypeRouteType;

@@ -1,5 +1,18 @@
 import type { Schema, Struct } from '@strapi/strapi';
 
+export interface GeneralLink extends Struct.ComponentSchema {
+  collectionName: 'components_general_links';
+  info: {
+    displayName: 'link';
+  };
+  attributes: {
+    anchor: Schema.Attribute.String;
+    target: Schema.Attribute.Enumeration<['_blanc', '_self']> &
+      Schema.Attribute.DefaultTo<'_self'>;
+    url: Schema.Attribute.String;
+  };
+}
+
 export interface GeneralSeo extends Struct.ComponentSchema {
   collectionName: 'components_general_seos';
   info: {
@@ -373,6 +386,7 @@ export interface SharedAddress extends Struct.ComponentSchema {
 declare module '@strapi/strapi' {
   export module Public {
     export interface ComponentSchemas {
+      'general.link': GeneralLink;
       'general.seo': GeneralSeo;
       'page-blocks.article-grid': PageBlocksArticleGrid;
       'page-blocks.cards': PageBlocksCards;

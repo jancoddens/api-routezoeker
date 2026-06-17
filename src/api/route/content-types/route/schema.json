@@ -348,6 +348,12 @@
         "page-blocks.cards",
         "page-blocks.article-grid"
       ]
+    },
+    "pois": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::poi.poi",
+      "mappedBy": "routes"
     }
   }
 }
