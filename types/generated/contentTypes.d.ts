@@ -935,6 +935,72 @@ export interface ApiFaqFaq extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiFavoriteLogieFavoriteLogie
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'favorite_logies';
+  info: {
+    displayName: 'Favorite logie';
+    pluralName: 'favorite-logies';
+    singularName: 'favorite-logie';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::favorite-logie.favorite-logie'
+    > &
+      Schema.Attribute.Private;
+    partner: Schema.Attribute.Relation<'manyToOne', 'api::partner.partner'>;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
+export interface ApiFavoriteRouteFavoriteRoute
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'favorite_routes';
+  info: {
+    displayName: 'Favorite route';
+    pluralName: 'favorite-routes';
+    singularName: 'favorite-route';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::favorite-route.favorite-route'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    route: Schema.Attribute.Relation<'manyToOne', 'api::route.route'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiLocationThemePageLocationThemePage
   extends Struct.CollectionTypeSchema {
   collectionName: 'location_theme_pages';
@@ -1023,6 +1089,52 @@ export interface ApiLocationThemePageLocationThemePage
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+  };
+}
+
+export interface ApiNewsletterSubscriptionNewsletterSubscription
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'newsletter_subscriptions';
+  info: {
+    displayName: 'Newsletter subscription';
+    pluralName: 'newsletter-subscriptions';
+    singularName: 'newsletter-subscription';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    confirmed_at: Schema.Attribute.DateTime;
+    consent_at: Schema.Attribute.DateTime;
+    consent_ip_hash: Schema.Attribute.String & Schema.Attribute.Private;
+    consent_user_agent: Schema.Attribute.Text & Schema.Attribute.Private;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    email: Schema.Attribute.Email &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::newsletter-subscription.newsletter-subscription'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    source: Schema.Attribute.Enumeration<['website', 'import', 'admin']> &
+      Schema.Attribute.DefaultTo<'website'>;
+    status: Schema.Attribute.Enumeration<
+      ['pending', 'subscribed', 'unsubscribed']
+    > &
+      Schema.Attribute.DefaultTo<'pending'>;
+    unsubscribed_at: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
   };
 }
 
@@ -2145,6 +2257,39 @@ export interface ApiThemeTheme extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiUserProfileUserProfile extends Struct.CollectionTypeSchema {
+  collectionName: 'user_profiles';
+  info: {
+    displayName: 'User profile';
+    pluralName: 'user-profiles';
+    singularName: 'user-profile';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    first_name: Schema.Attribute.String;
+    last_name: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::user-profile.user-profile'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface PluginContentReleasesRelease
   extends Struct.CollectionTypeSchema {
   collectionName: 'strapi_releases';
@@ -2663,7 +2808,10 @@ declare module '@strapi/strapi' {
       'api::country.country': ApiCountryCountry;
       'api::faq-category.faq-category': ApiFaqCategoryFaqCategory;
       'api::faq.faq': ApiFaqFaq;
+      'api::favorite-logie.favorite-logie': ApiFavoriteLogieFavoriteLogie;
+      'api::favorite-route.favorite-route': ApiFavoriteRouteFavoriteRoute;
       'api::location-theme-page.location-theme-page': ApiLocationThemePageLocationThemePage;
+      'api::newsletter-subscription.newsletter-subscription': ApiNewsletterSubscriptionNewsletterSubscription;
       'api::node-connection.node-connection': ApiNodeConnectionNodeConnection;
       'api::node-network.node-network': ApiNodeNetworkNodeNetwork;
       'api::node.node': ApiNodeNode;
@@ -2677,6 +2825,7 @@ declare module '@strapi/strapi' {
       'api::route.route': ApiRouteRoute;
       'api::tag.tag': ApiTagTag;
       'api::theme.theme': ApiThemeTheme;
+      'api::user-profile.user-profile': ApiUserProfileUserProfile;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

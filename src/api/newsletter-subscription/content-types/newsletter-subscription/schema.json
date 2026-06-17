@@ -1,0 +1,60 @@
+{
+  "kind": "collectionType",
+  "collectionName": "newsletter_subscriptions",
+  "info": {
+    "singularName": "newsletter-subscription",
+    "pluralName": "newsletter-subscriptions",
+    "displayName": "Newsletter subscription"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "email": {
+      "type": "email",
+      "required": true,
+      "unique": true
+    },
+    "status": {
+      "type": "enumeration",
+      "default": "pending",
+      "enum": [
+        "pending",
+        "subscribed",
+        "unsubscribed"
+      ]
+    },
+    "source": {
+      "type": "enumeration",
+      "default": "website",
+      "enum": [
+        "website",
+        "import",
+        "admin"
+      ]
+    },
+    "consent_at": {
+      "type": "datetime"
+    },
+    "consent_ip_hash": {
+      "type": "string",
+      "private": true
+    },
+    "consent_user_agent": {
+      "type": "text",
+      "private": true
+    },
+    "confirmed_at": {
+      "type": "datetime"
+    },
+    "unsubscribed_at": {
+      "type": "datetime"
+    }
+  }
+}

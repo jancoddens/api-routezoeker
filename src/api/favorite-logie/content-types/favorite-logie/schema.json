@@ -1,0 +1,25 @@
+{
+  "kind": "collectionType",
+  "collectionName": "favorite_logies",
+  "info": {
+    "singularName": "favorite-logie",
+    "pluralName": "favorite-logies",
+    "displayName": "Favorite logie"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "partner": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::partner.partner"
+    }
+  }
+}

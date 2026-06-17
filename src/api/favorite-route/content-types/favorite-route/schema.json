@@ -1,0 +1,25 @@
+{
+  "kind": "collectionType",
+  "collectionName": "favorite_routes",
+  "info": {
+    "singularName": "favorite-route",
+    "pluralName": "favorite-routes",
+    "displayName": "Favorite route"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "route": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::route.route"
+    }
+  }
+}
