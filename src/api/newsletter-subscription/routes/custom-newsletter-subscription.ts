@@ -17,5 +17,13 @@ export default {
         auth: false,
       },
     },
+    {
+      method: 'POST',
+      path: '/newsletter/confirm',
+      handler: 'newsletter-subscription.confirm',
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

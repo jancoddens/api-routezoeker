@@ -430,6 +430,42 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiAccountDeletionRequestAccountDeletionRequest
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'account_deletion_requests';
+  info: {
+    displayName: 'Account deletion request';
+    pluralName: 'account-deletion-requests';
+    singularName: 'account-deletion-request';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    confirmation_expires_at: Schema.Attribute.DateTime;
+    confirmation_sent_at: Schema.Attribute.DateTime;
+    confirmation_token_hash: Schema.Attribute.String & Schema.Attribute.Private;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    email: Schema.Attribute.Email & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::account-deletion-request.account-deletion-request'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiAuthorAuthor extends Struct.CollectionTypeSchema {
   collectionName: 'authors';
   info: {
@@ -1104,6 +1140,10 @@ export interface ApiNewsletterSubscriptionNewsletterSubscription
     draftAndPublish: false;
   };
   attributes: {
+    confirmation_expires_at: Schema.Attribute.DateTime &
+      Schema.Attribute.Private;
+    confirmation_sent_at: Schema.Attribute.DateTime & Schema.Attribute.Private;
+    confirmation_token_hash: Schema.Attribute.String & Schema.Attribute.Private;
     confirmed_at: Schema.Attribute.DateTime;
     consent_at: Schema.Attribute.DateTime;
     consent_ip_hash: Schema.Attribute.String & Schema.Attribute.Private;
@@ -2801,6 +2841,7 @@ declare module '@strapi/strapi' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
+      'api::account-deletion-request.account-deletion-request': ApiAccountDeletionRequestAccountDeletionRequest;
       'api::author.author': ApiAuthorAuthor;
       'api::blog-category.blog-category': ApiBlogCategoryBlogCategory;
       'api::blog-post.blog-post': ApiBlogPostBlogPost;

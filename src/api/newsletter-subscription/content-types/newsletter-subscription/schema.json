@@ -50,6 +50,18 @@
       "type": "text",
       "private": true
     },
+    "confirmation_token_hash": {
+      "type": "string",
+      "private": true
+    },
+    "confirmation_expires_at": {
+      "type": "datetime",
+      "private": true
+    },
+    "confirmation_sent_at": {
+      "type": "datetime",
+      "private": true
+    },
     "confirmed_at": {
       "type": "datetime"
     },

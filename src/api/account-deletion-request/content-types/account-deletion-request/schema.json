@@ -1,0 +1,34 @@
+{
+  "kind": "collectionType",
+  "collectionName": "account_deletion_requests",
+  "info": {
+    "singularName": "account-deletion-request",
+    "pluralName": "account-deletion-requests",
+    "displayName": "Account deletion request"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "email": {
+      "type": "email",
+      "required": true
+    },
+    "confirmation_token_hash": {
+      "type": "string",
+      "private": true
+    },
+    "confirmation_expires_at": {
+      "type": "datetime"
+    },
+    "confirmation_sent_at": {
+      "type": "datetime"
+    }
+  }
+}
