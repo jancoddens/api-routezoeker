@@ -18,7 +18,9 @@ export default {
    * This gives you an opportunity to set up your data model,
    * run jobs, or perform some special logic.
    */
-  bootstrap({ strapi }: { strapi: Core.Strapi }) {
+  async bootstrap({ strapi }: { strapi: Core.Strapi }) {
+    await configurePasswordResetEmail(strapi);
+
     const autofillUpdatesInFlight = new Set<number>();
 
     strapi.db.lifecycles.subscribe({
@@ -37,6 +39,48 @@ export default {
       },
     });
   },
+};
+
+const configurePasswordResetEmail = async (strapi: Core.Strapi) => {
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://www.routezoeker.com').replace(/\/+$/, '');
+  const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || 'info@routezoeker.com';
+  const replyTo = process.env.SMTP_REPLY_TO || 'info@routezoeker.com';
+  const pluginStore = strapi.store({ type: 'plugin', name: 'users-permissions' });
+  const advanced = ((await pluginStore.get({ key: 'advanced' })) || {}) as Record<string, unknown>;
+  const email = ((await pluginStore.get({ key: 'email' })) || {}) as Record<string, any>;
+  const resetPassword = email.reset_password || {};
+
+  await pluginStore.set({
+    key: 'advanced',
+    value: {
+      ...advanced,
+      email_reset_password: `${frontendUrl}/wachtwoord-herstellen`,
+    },
+  });
+
+  await pluginStore.set({
+    key: 'email',
+    value: {
+      ...email,
+      reset_password: {
+        ...resetPassword,
+        options: {
+          ...(resetPassword.options || {}),
+          from: {
+            name: 'Routezoeker',
+            email: fromEmail,
+          },
+          response_email: replyTo,
+          object: 'Stel je Routezoeker-wachtwoord opnieuw in',
+          message: `<p>Je vroeg een nieuw wachtwoord aan voor je Routezoeker-account.</p>
+
+<p><a href="<%= URL %>?code=<%= TOKEN %>">Stel een nieuw wachtwoord in</a></p>
+
+<p>Heb je dit niet aangevraagd? Dan mag je deze e-mail negeren.</p>`,
+        },
+      },
+    },
+  });
 };
 
 const shouldRunGpxAutofill = (updateData: unknown) => {
