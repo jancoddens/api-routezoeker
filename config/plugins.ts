@@ -12,6 +12,9 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
           user: env('SMTP_USER'),
           pass: env('SMTP_PASSWORD'),
         },
+        tls: {
+          rejectUnauthorized: false,
+        },
       },
       settings: {
         defaultFrom: env('SMTP_FROM', env('SMTP_USER', 'info@routezoeker.com')),
