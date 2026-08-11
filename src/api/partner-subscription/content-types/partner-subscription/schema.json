@@ -47,8 +47,7 @@
       "type": "integer"
     },
     "routes": {
-      "type": "integer",
-      "default": 30
+      "type": "integer"
     },
     "notes": {
       "type": "text"
