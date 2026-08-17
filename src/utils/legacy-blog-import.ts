@@ -237,6 +237,12 @@ type BlockNode = Record<string, unknown>;
 const normalizeHref = (href: string) => decodeHtmlEntities(href.trim());
 const getLinkTarget = (href: string) => (/^https?:\/\//i.test(href) ? '_blank' : '_self');
 const getLinkRel = (href: string) => (/^https?:\/\//i.test(href) ? 'noopener noreferrer' : '');
+// Strapi's blocks-veld accepteert enkel absolute (http/https) of root-relatieve
+// ("/pad") urls. Legacy in-paginaverwijzingen zoals "#route1" (ankers naar
+// een sectie die in de nieuwe opbouw toch niet bestaat) vallen hierbuiten —
+// die zetten we om naar gewone tekst i.p.v. een link, anders weigert Strapi
+// de hele blogpost.
+const isValidBlocksLinkUrl = (href: string) => /^https?:\/\//i.test(href) || href.startsWith('/');
 
 // Eén-staps inline tokenizer: link / bold / italic op het hoogste niveau.
 // Geneste opmaak binnenin (bv. <strong> in een <a>) wordt platgeslagen naar
@@ -259,7 +265,7 @@ const htmlInlineToChildren = (value: string): InlineNode[] => {
       // link
       const href = normalizeHref(match[2] ?? '');
       const linkText = stripHtmlTags(match[3] ?? '');
-      if (href && linkText) {
+      if (href && linkText && isValidBlocksLinkUrl(href)) {
         children.push({
           type: 'link',
           url: href,
