@@ -326,9 +326,8 @@ const paragraphsFromLooseText = (value: string): BlockNode[] =>
   value
     .replace(/<br\s*\/?>/gi, '\n')
     .split(/\n{2,}|\n/)
-    .map((chunk) => stripHtmlTags(chunk))
-    .filter(Boolean)
-    .map((text) => ({ type: 'paragraph', children: [{ type: 'text', text }] }));
+    .filter((chunk) => stripHtmlTags(chunk))
+    .map((chunk) => ({ type: 'paragraph', children: htmlInlineToChildren(chunk) }));
 
 export const htmlToBlocks = (html: string | null | undefined): BlockNode[] => {
   const value = (html ?? '').replace(/\r\n?/g, '\n').trim();
@@ -778,7 +777,11 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
       }
     } catch (error) {
       summary.errors += 1;
-      const message = (error as Error)?.message || String(error);
+      const details = (error as { details?: { errors?: Array<{ path?: string[]; message?: string }> } })?.details?.errors;
+      const detailText = Array.isArray(details) && details.length > 0
+        ? details.map((detail) => `${(detail.path ?? []).join('.')}: ${detail.message}`).join(' | ')
+        : undefined;
+      const message = detailText || (error as Error)?.message || String(error);
       summary.rows.push({ id: legacyId, slug: '', status: 'error', message });
       strapi.log.error(`[legacy-blog-import] Blog ${legacyId} mislukt: ${message}`);
     }
