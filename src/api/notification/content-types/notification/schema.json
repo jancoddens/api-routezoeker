@@ -54,6 +54,12 @@
         }
       }
     },
+    "valid_from": {
+      "type": "date"
+    },
+    "valid_until": {
+      "type": "date"
+    },
     "route": {
       "type": "relation",
       "relation": "oneToOne",
