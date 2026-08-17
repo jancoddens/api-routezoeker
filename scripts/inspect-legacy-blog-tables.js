@@ -127,12 +127,15 @@ const parsePhpConfig = async (configPath) => {
   return { host, user, password, database };
 };
 
-// Elke query geeft precies EEN kolom terug (een JSON-string per rij), dus we
-// kunnen gewoon regel-voor-regel JSON.parse() doen. Geen --raw, dus mysql
-// zelf ontsnapt eventuele tabs/newlines correct, en die JSON-string bevat
-// zelf ook geen losse newlines omdat MySQL's JSON_OBJECT() dat al escaped.
+// Elke query geeft precies EEN kolom terug (een JSON-string per rij).
+// --raw is hier verplicht: zonder --raw past mysql zijn EIGEN batch-escaping
+// toe (backslash/tab/newline -> \\, \t, \n) bovenop de escaping die
+// JSON_OBJECT() zelf al deed, wat de JSON-tekst corrumpeert (dubbele
+// escaping). Met --raw komt de door MySQL gegenereerde JSON ongewijzigd
+// (en dus geldig) door, en bevat die zelf geen losse newlines omdat
+// JSON_OBJECT() newlines binnen strings al als \n encodeert.
 const runJsonRowQuery = async (config, sql) => {
-  const args = ['--batch', '--skip-column-names', '-h', config.host, '-u', config.user, '-D', config.database, '-e', sql];
+  const args = ['--batch', '--raw', '--skip-column-names', '-h', config.host, '-u', config.user, '-D', config.database, '-e', sql];
 
   if (config.port) {
     args.splice(6, 0, '-P', String(config.port));
