@@ -3,19 +3,20 @@
 'use strict';
 
 // Read-only helper: lists legacy MySQL tables that look related to blog
-// content (artikels/nieuws/posts shown on the old site) so we know the
-// exact schema before writing a real import script. Does NOT touch Strapi
-// or write anything, anywhere.
+// content (artikels/nieuws/posts/profielen) so we know the exact schema
+// before writing a real import script. Does NOT touch Strapi or write
+// anything, anywhere.
+//
+// v2: uses MySQL's own JSON_OBJECT() to build each row server-side, so
+// multi-line HTML fields (with embedded newlines) can't corrupt the
+// row-per-line parsing the way plain --batch/--raw TSV output did.
 //
 // Usage:
 //   node scripts/inspect-legacy-blog-tables.js
 //   node scripts/inspect-legacy-blog-tables.js --config /pad/naar/config.php
-//   node scripts/inspect-legacy-blog-tables.js --like "%blog%,%artikel%,%article%,%nieuws%,%news%,%post%"
+//   node scripts/inspect-legacy-blog-tables.js --like "%blog%,%artikel%,%profiel%"
 //   node scripts/inspect-legacy-blog-tables.js --password ietsAnders --user routezoeker --host localhost --database front_routezoeker
-//
-// De --host/--user/--password/--database flags overschrijven wat er uit
-// config.php gehaald wordt, handig als dat bestand een verouderd wachtwoord
-// bevat.
+//   node scripts/inspect-legacy-blog-tables.js --full-table Blog   (dumpt ALLE rijen van deze tabel, lichte kolommen only)
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -35,7 +36,10 @@ const DEFAULT_LIKE_PATTERNS = [
   '%categor%',
   '%auteur%',
   '%author%',
+  '%profiel%',
+  '%profile%',
 ];
+const SAMPLE_TEXT_MAX_LENGTH = 400;
 
 const parseArgs = () => {
   const rawArgs = process.argv.slice(2);
@@ -47,6 +51,7 @@ const parseArgs = () => {
     passwordOverride: undefined,
     databaseOverride: undefined,
     portOverride: undefined,
+    fullTable: undefined,
   };
 
   for (let index = 0; index < rawArgs.length; index += 1) {
@@ -94,6 +99,12 @@ const parseArgs = () => {
       continue;
     }
 
+    if (arg === '--full-table') {
+      options.fullTable = rawArgs[index + 1];
+      index += 1;
+      continue;
+    }
+
     throw new Error(`Unexpected argument: ${arg}`);
   }
 
@@ -116,7 +127,29 @@ const parsePhpConfig = async (configPath) => {
   return { host, user, password, database };
 };
 
-const runMysqlQuery = async (config, sql) => {
+// Elke query geeft precies EEN kolom terug (een JSON-string per rij), dus we
+// kunnen gewoon regel-voor-regel JSON.parse() doen. Geen --raw, dus mysql
+// zelf ontsnapt eventuele tabs/newlines correct, en die JSON-string bevat
+// zelf ook geen losse newlines omdat MySQL's JSON_OBJECT() dat al escaped.
+const runJsonRowQuery = async (config, sql) => {
+  const args = ['--batch', '--skip-column-names', '-h', config.host, '-u', config.user, '-D', config.database, '-e', sql];
+
+  if (config.port) {
+    args.splice(6, 0, '-P', String(config.port));
+  }
+
+  const { stdout } = await execFileAsync('mysql', args, {
+    env: { ...process.env, MYSQL_PWD: config.password },
+    maxBuffer: 1024 * 1024 * 50,
+  });
+
+  return stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+};
+
+const runPlainQuery = async (config, sql) => {
   const args = ['--batch', '--raw', '-h', config.host, '-u', config.user, '-D', config.database, '-e', sql];
 
   if (config.port) {
@@ -141,6 +174,16 @@ const runMysqlQuery = async (config, sql) => {
   });
 };
 
+const buildJsonObjectExpr = (columns, { truncate } = {}) => {
+  const parts = columns.map((column) => {
+    const valueExpr = truncate
+      ? `LEFT(\`${column}\`, ${SAMPLE_TEXT_MAX_LENGTH})`
+      : `\`${column}\``;
+    return `'${column}', ${valueExpr}`;
+  });
+  return `JSON_OBJECT(${parts.join(', ')})`;
+};
+
 const run = async () => {
   const options = parseArgs();
   const parsedConfig = await parsePhpConfig(options.configPath);
@@ -153,8 +196,21 @@ const run = async () => {
     port: options.portOverride,
   };
 
+  if (options.fullTable) {
+    const columns = (await runPlainQuery(config, `DESCRIBE \`${options.fullTable}\``)).map(
+      (column) => column.Field
+    );
+    const jsonExpr = buildJsonObjectExpr(columns, { truncate: true });
+    const rows = await runJsonRowQuery(
+      config,
+      `SELECT ${jsonExpr} FROM \`${options.fullTable}\``
+    );
+    console.log(JSON.stringify({ table: options.fullTable, columns, rowCount: rows.length, rows }, null, 2));
+    return;
+  }
+
   const likeClause = options.likePatterns.map((pattern) => `table_name LIKE '${pattern}'`).join(' OR ');
-  const tables = await runMysqlQuery(
+  const tables = await runPlainQuery(
     config,
     `SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = '${config.database}' AND (${likeClause}) ORDER BY table_name`
   );
@@ -162,7 +218,7 @@ const run = async () => {
   if (tables.length === 0) {
     console.log('Geen tabellen gevonden die matchen met:', options.likePatterns.join(', '));
     console.log('Alle tabellen in de database:');
-    const allTables = await runMysqlQuery(
+    const allTables = await runPlainQuery(
       config,
       `SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = '${config.database}' ORDER BY table_name`
     );
@@ -174,13 +230,14 @@ const run = async () => {
 
   for (const table of tables) {
     const tableName = table.TABLE_NAME || table.table_name;
-    const columns = await runMysqlQuery(config, `DESCRIBE \`${tableName}\``);
-    const sampleRows = await runMysqlQuery(config, `SELECT * FROM \`${tableName}\` LIMIT 2`);
+    const columns = (await runPlainQuery(config, `DESCRIBE \`${tableName}\``)).map((column) => column.Field);
+    const jsonExpr = buildJsonObjectExpr(columns, { truncate: true });
+    const sampleRows = await runJsonRowQuery(config, `SELECT ${jsonExpr} FROM \`${tableName}\` LIMIT 2`);
 
     result.push({
       table: tableName,
       approxRowCount: table.TABLE_ROWS || table.table_rows,
-      columns: columns.map((column) => column.Field || column.field),
+      columns,
       sampleRows,
     });
   }
