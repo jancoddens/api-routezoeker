@@ -11,6 +11,7 @@
     "develop": "strapi develop",
     "import:belgian-cities": "node scripts/import-belgian-cities.js",
     "import:dutch-cities": "node scripts/import-dutch-cities.js",
+    "import:legacy-blogs": "node scripts/import-legacy-blogs.js",
     "import:legacy-node-networks": "node scripts/import-legacy-node-networks.js",
     "import:legacy-bikes": "node scripts/import-legacy-bikes.js",
     "import:legacy-walks": "node scripts/import-legacy-walks.js",
