@@ -2,6 +2,12 @@
 
 'use strict';
 
+// --descriptions-path <map> (default: <legacy-root>/descriptions_walk): vult
+// route.long_description aan vanuit descriptions_walk/<slug>.php wanneer een
+// bestand matcht op de route-slug (dit veld werd voorheen nooit gezet).
+// Kopieer descriptions_walk (met haar eigen images/ submap) eerst naar de VPS,
+// als submap van --legacy-root.
+
 const path = require('node:path');
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
 
@@ -16,6 +22,7 @@ const parseArgs = () => {
     limit: undefined,
     offset: undefined,
     dryRun: false,
+    descriptionsPath: undefined,
     hostOverride: undefined,
     portOverride: undefined,
     userOverride: undefined,
@@ -61,6 +68,12 @@ const parseArgs = () => {
       continue;
     }
 
+    if (arg === '--descriptions-path') {
+      options.descriptionsPath = rawArgs[index + 1];
+      index += 1;
+      continue;
+    }
+
     if (arg === '--host') {
       options.hostOverride = rawArgs[index + 1];
       index += 1;
@@ -92,6 +105,14 @@ const parseArgs = () => {
     }
 
     throw new Error(`Unexpected argument: ${arg}`);
+  }
+
+  // Standaard: descriptions_walk als submap van --legacy-root, zodat je enkel
+  // die map naar de VPS moet kopiëren (naast config.php e.d.) zonder een
+  // extra flag te moeten meegeven. Override met --descriptions-path als de
+  // map ergens anders staat.
+  if (options.descriptionsPath === undefined) {
+    options.descriptionsPath = path.join(options.legacyRoot, 'descriptions_walk');
   }
 
   return options;

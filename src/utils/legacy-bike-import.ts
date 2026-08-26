@@ -6,7 +6,22 @@ import { promisify } from 'node:util';
 import mime from 'mime-types';
 import type { Core } from '@strapi/strapi';
 
+import {
+  legacyDescriptionHtmlToBlocks,
+  findDescriptionFile,
+  resolvePendingImageBlocks,
+  buildImageBlockFromUploadedMedia,
+  type DescriptionZone,
+} from './legacy-description-blocks';
+
 const execFileAsync = promisify(execFile);
+
+// Legacy site is nog live — enkel gebruikt om interne links in
+// descriptions_bike-bestanden (bv. "/wandelroutes/...") om te zetten naar
+// absolute links, zodat ze niet 404'en op de nieuwe site. Afbeeldingen komen
+// NIET via HTTP: die staan al lokaal mee in descriptions_bike/images/ (zie
+// resolveDescriptionsImageFile hieronder), net als de rest van de legacy-root.
+const LEGACY_SITE_BASE_URL = 'https://routezoeker.com';
 
 const formatCopyrightCaption = (copyright?: string | null) => {
   const normalized = copyright?.trim();
@@ -54,6 +69,11 @@ type ImportOptions = {
   limit?: number;
   offset?: number;
   dryRun?: boolean;
+  // Pad naar de map met legacy PHP-route-artikelen (descriptions_bike/<slug>.php).
+  // Vult route.long_description (dynamic zone) aan wanneer een bestand matcht
+  // op de route-slug — dit veld wordt anders nooit gezet. Optioneel; laat weg
+  // om dit gedrag helemaal uit te schakelen.
+  descriptionsPath?: string;
   hostOverride?: string;
   portOverride?: number;
   userOverride?: string;
@@ -1281,6 +1301,20 @@ const resolveLegacyFile = async (root: string, folder: string, fileName: string 
   return null;
 };
 
+// Vertaalt een __legacySrc uit een descriptions_bike-bestand (bv.
+// "/descriptions_bike/images/foo.jpg", root-relatief zoals het ook op de
+// live legacy site staat) naar een lokaal bestandspad onder --legacy-root.
+// Gaat ervan uit dat de map descriptions_bike (met haar eigen images/
+// submap) mee gekopieerd is naar de legacy-root op de VPS, naast config.php
+// e.d.
+const resolveDescriptionsImageFile = async (root: string, legacySrc: string): Promise<string | null> => {
+  const relative = legacySrc.replace(/^\/+/, '');
+  const lastSlash = relative.lastIndexOf('/');
+  const folder = lastSlash >= 0 ? relative.slice(0, lastSlash) : '';
+  const fileName = lastSlash >= 0 ? relative.slice(lastSlash + 1) : relative;
+  return resolveLegacyFile(root, folder, fileName);
+};
+
 const readGpxWaypointCoordinates = async (absolutePath: string | null) => {
   if (!absolutePath) {
     return new Map<string, Coordinate>();
@@ -2203,10 +2237,59 @@ export const importLegacyBikes = async (
     const legacyNodeNetworkId = bikeNetworkLegacyIdByBikeId.get(Number(bike.ID));
     const nodeNetworkId =
       typeof legacyNodeNetworkId === 'number' ? (nodeNetworkIdByLegacyId.get(legacyNodeNetworkId) ?? null) : null;
+
+    // long_description: aparte, uitgebreide route-write-up die nooit
+    // structureel in de legacy DB stond — enkel als los PHP-paginafragment
+    // gecodeerd (descriptions_bike/<slug>.php). Vult het veld enkel als
+    // --descriptions-path is meegegeven en er een bestand matcht op deze
+    // slug; anders blijft het leeg zoals voorheen.
+    let longDescriptionZones: DescriptionZone[] = [];
+    if (options.descriptionsPath) {
+      const descriptionFile = await findDescriptionFile(options.descriptionsPath, slug);
+      if (descriptionFile) {
+        try {
+          const raw = await fs.readFile(descriptionFile, 'utf8');
+          const blocks = legacyDescriptionHtmlToBlocks(raw, LEGACY_SITE_BASE_URL);
+          if (blocks.length > 0) {
+            const zones: DescriptionZone[] = [
+              { __component: 'page-blocks.text-section', content: blocks, max_width: 'default' },
+            ];
+            if (!options.dryRun) {
+              await resolvePendingImageBlocks(zones, async (legacySrc, legacyAlt) => {
+                const absolutePath = await resolveDescriptionsImageFile(options.legacyRoot, legacySrc);
+                if (!absolutePath) {
+                  strapi.log.warn(
+                    `[legacy-bike-import] Route ${slug}: afbeelding in long_description niet gevonden (${legacySrc}).`
+                  );
+                  return null;
+                }
+                const uploaded = await uploadLocalFile(
+                  strapi,
+                  absolutePath,
+                  path.basename(absolutePath),
+                  'routes',
+                  legacyAlt,
+                  null,
+                  options.dryRun
+                );
+                return uploaded ? buildImageBlockFromUploadedMedia(uploaded, legacyAlt) : null;
+              });
+            }
+            longDescriptionZones = zones;
+          }
+        } catch (error) {
+          strapi.log.warn(
+            `[legacy-bike-import] Route ${slug}: kon descriptions-bestand ${descriptionFile} niet lezen: ${(error as Error)?.message}`
+          );
+        }
+      }
+    }
+
     const routeData = stripUndefinedDeep({
       title,
       slug,
       description: blocksDescription && blocksDescription.length > 0 ? blocksDescription : undefined,
+      long_description: longDescriptionZones.length > 0 ? longDescriptionZones : undefined,
       difficulty: mapDifficulty(bike.Moeilijkheid),
       waymarked: routeMarkings.length > 0 || effectiveKnooppunten !== null || toBooleanValue(bike.T_Bewegwijzerd),
       public_transport_access: toStringValue(bike.Openbaar_vervoer) ? true : undefined,

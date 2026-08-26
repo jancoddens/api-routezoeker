@@ -7,6 +7,17 @@ import { promisify } from 'node:util';
 import mime from 'mime-types';
 import type { Core } from '@strapi/strapi';
 
+import {
+  htmlToBlocks,
+  legacyDescriptionHtmlToBlocks,
+  findDescriptionFile,
+  resolvePendingImageBlocks,
+  buildImageBlockFromUploadedMedia,
+  stripHtmlTags,
+  type BlockNode,
+  type DescriptionZone,
+} from './legacy-description-blocks';
+
 const execFileAsync = promisify(execFile);
 
 // Legacy site (routezoeker.com, PHP) is still live and publicly reachable, so
@@ -201,29 +212,6 @@ const fetchLegacyProfielRow = async (config: LegacyDbConfig, profielId: number):
 // Small string / HTML helpers
 // ---------------------------------------------------------------------------
 
-const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
-
-const decodeHtmlEntities = (value: string) =>
-  value
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&apos;/gi, "'")
-    .replace(/&lsquo;|&rsquo;/gi, "'")
-    .replace(/&ldquo;|&rdquo;/gi, '"')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>');
-
-const stripHtmlTags = (value: string) => normalizeWhitespace(decodeHtmlEntities(value.replace(/<[^>]+>/g, ' ')));
-// Zelfde als stripHtmlTags, maar zonder trim() — gebruikt op de tekststukken
-// tussen inline-tags (vóór/na een <a>/<strong>/<em>) zodat een spatie in de
-// brontekst (bv. "bij: <strong>iets</strong> is") niet verloren gaat. Zonder
-// dit plakken twee opeenvolgende <span>-elementen in de frontend aan elkaar:
-// "bij:iets" i.p.v. "bij: iets".
-const stripHtmlTagsKeepEdges = (value: string) =>
-  decodeHtmlEntities(value.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ');
-
 const toStringValue = (value: unknown): string | null => {
   if (value === undefined || value === null) {
     return null;
@@ -250,225 +238,6 @@ const toIsoDate = (value: string | null): string | undefined => {
   const parsed = new Date(value.replace(' ', 'T'));
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 };
-
-// ---------------------------------------------------------------------------
-// HTML -> Strapi "blocks" content conversion
-// ---------------------------------------------------------------------------
-
-type InlineNode = Record<string, unknown>;
-type BlockNode = Record<string, unknown>;
-
-// Legacy pagina's die (nog) niet op de nieuwe site bestaan (interne links
-// zoals "/wandelroutes/..." uit descriptions_blog-bestanden) verwijzen we
-// door naar de oude site i.p.v. ze te laten 404'en op nieuw.routezoeker.com.
-// legacyBaseUrl is enkel gezet wanneer we HTML uit een descriptions_blog
-// PHP-bestand parsen (zie htmlToBlocks); voor DB-velden (Intro/Lange_omschrijving)
-// blijft dit ongemoeid (root-relatieve links blijven root-relatief).
-const normalizeHref = (href: string, legacyBaseUrl?: string) => {
-  const trimmed = decodeHtmlEntities(href.trim());
-  if (legacyBaseUrl && trimmed.startsWith('/') && !trimmed.startsWith('//')) {
-    return `${legacyBaseUrl}${trimmed}`;
-  }
-  return trimmed;
-};
-const getLinkTarget = (href: string) => (/^https?:\/\//i.test(href) ? '_blank' : '_self');
-const getLinkRel = (href: string) => (/^https?:\/\//i.test(href) ? 'noopener noreferrer' : '');
-// Strapi's blocks-veld accepteert enkel absolute (http/https) of root-relatieve
-// ("/pad") urls. Legacy in-paginaverwijzingen zoals "#route1" (ankers naar
-// een sectie die in de nieuwe opbouw toch niet bestaat) vallen hierbuiten —
-// die zetten we om naar gewone tekst i.p.v. een link, anders weigert Strapi
-// de hele blogpost.
-const isValidBlocksLinkUrl = (href: string) => /^https?:\/\//i.test(href) || href.startsWith('/');
-
-// Eén-staps inline tokenizer: link / bold / italic op het hoogste niveau.
-// Geneste opmaak binnenin (bv. <strong> in een <a>) wordt platgeslagen naar
-// tekst — voor deze blogcontent (grotendeels vlakke HTML) is dat voldoende.
-const INLINE_PATTERN =
-  /<a\b[^>]*href=(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>|<(strong|b)\b[^>]*>([\s\S]*?)<\/\4>|<(em|i)\b[^>]*>([\s\S]*?)<\/\6>/gi;
-
-const htmlInlineToChildren = (value: string, legacyBaseUrl?: string): InlineNode[] => {
-  const children: InlineNode[] = [];
-  let lastIndex = 0;
-
-  for (const match of value.matchAll(INLINE_PATTERN)) {
-    const index = match.index ?? 0;
-    const before = stripHtmlTagsKeepEdges(value.slice(lastIndex, index));
-    if (before) {
-      children.push({ type: 'text', text: before });
-    }
-
-    if (match[2] !== undefined) {
-      // link
-      const href = normalizeHref(match[2] ?? '', legacyBaseUrl);
-      const linkText = stripHtmlTags(match[3] ?? '');
-      if (href && linkText && isValidBlocksLinkUrl(href)) {
-        children.push({
-          type: 'link',
-          url: href,
-          target: getLinkTarget(href),
-          rel: getLinkRel(href),
-          children: [{ type: 'text', text: linkText }],
-        });
-      } else if (linkText) {
-        children.push({ type: 'text', text: linkText });
-      }
-    } else if (match[4] !== undefined) {
-      // bold
-      const boldText = stripHtmlTags(match[5] ?? '');
-      if (boldText) {
-        children.push({ type: 'text', text: boldText, bold: true });
-      }
-    } else if (match[6] !== undefined) {
-      // italic
-      const italicText = stripHtmlTags(match[7] ?? '');
-      if (italicText) {
-        children.push({ type: 'text', text: italicText, italic: true });
-      }
-    }
-
-    lastIndex = index + match[0].length;
-  }
-
-  const after = stripHtmlTagsKeepEdges(value.slice(lastIndex));
-  if (after) {
-    children.push({ type: 'text', text: after });
-  }
-
-  return children.length > 0 ? children : [{ type: 'text', text: '' }];
-};
-
-const LIST_ITEM_PATTERN = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-
-const htmlListToBlock = (tagName: string, innerHtml: string, legacyBaseUrl?: string): BlockNode | null => {
-  const items = Array.from(innerHtml.matchAll(LIST_ITEM_PATTERN))
-    .map((match) => stripHtmlTags(match[1] ?? '') && match[1])
-    .filter((value): value is string => Boolean(value));
-
-  if (items.length === 0) {
-    return null;
-  }
-
-  return {
-    type: 'list',
-    format: tagName.toLowerCase() === 'ol' ? 'ordered' : 'unordered',
-    children: items.map((item) => ({
-      type: 'list-item',
-      children: htmlInlineToChildren(item, legacyBaseUrl),
-    })),
-  };
-};
-
-// Haalt de waarde van één attribuut (bv. src, alt) uit een ruwe
-// attribuut-string van een <img ...> tag.
-const extractAttr = (attrs: string, name: string): string | null => {
-  const match = attrs.match(new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, 'i'));
-  return match ? decodeHtmlEntities(match[2] ?? '').trim() || null : null;
-};
-
-// Top-level block segmenter: knipt de HTML op in headings / lijsten /
-// paragrafen / afbeeldingen, en behandelt alle overige tekst (incl. tekst
-// buiten <p> tags, en tekst binnen <div>/<span> wrappers) als losse
-// paragrafen. <img> levert een "pending" image-block op (__legacySrc) —
-// die wordt pas na upload (async) omgezet naar een echt Strapi image-block,
-// zie resolveImageBlocksInZones.
-const BLOCK_PATTERN =
-  /<(h[2-6])[^>]*>([\s\S]*?)<\/\1>|<(ol|ul)[^>]*>([\s\S]*?)<\/\3>|<p[^>]*>([\s\S]*?)<\/p>|<img\b([^>]*)>/gi;
-
-const paragraphsFromLooseText = (value: string, legacyBaseUrl?: string): BlockNode[] =>
-  value
-    .replace(/<br\s*\/?>/gi, '\n')
-    .split(/\n{2,}|\n/)
-    .filter((chunk) => stripHtmlTags(chunk))
-    .map((chunk) => ({ type: 'paragraph', children: htmlInlineToChildren(chunk, legacyBaseUrl) }));
-
-// legacyBaseUrl (optioneel): wanneer gezet, worden root-relatieve links
-// ("/pad") omgezet naar absolute links naar de oude site (zie normalizeHref
-// hierboven) — gebruikt wanneer html afkomstig is uit een descriptions_blog
-// PHP-bestand. Voor DB-velden (Intro/Lange_omschrijving) laten we dit weg.
-export const htmlToBlocks = (html: string | null | undefined, legacyBaseUrl?: string): BlockNode[] => {
-  const value = (html ?? '').replace(/\r\n?/g, '\n').trim();
-  if (!value) {
-    return [];
-  }
-
-  const blocks: BlockNode[] = [];
-  let lastIndex = 0;
-
-  for (const match of value.matchAll(BLOCK_PATTERN)) {
-    const index = match.index ?? 0;
-    const loose = value.slice(lastIndex, index);
-    blocks.push(...paragraphsFromLooseText(loose, legacyBaseUrl));
-
-    if (match[1] !== undefined) {
-      // heading
-      const level = Math.min(6, Math.max(1, Number(match[1].slice(1)) || 2));
-      const text = htmlInlineToChildren(match[2] ?? '', legacyBaseUrl);
-      if (text.some((node) => toStringValue((node as { text?: string }).text))) {
-        blocks.push({ type: 'heading', level, children: text });
-      }
-    } else if (match[3] !== undefined) {
-      // list
-      const listBlock = htmlListToBlock(match[3], match[4] ?? '', legacyBaseUrl);
-      if (listBlock) {
-        blocks.push(listBlock);
-      }
-    } else if (match[5] !== undefined) {
-      // paragraph
-      blocks.push(...paragraphsFromLooseText(match[5] ?? '', legacyBaseUrl));
-    } else if (match[6] !== undefined) {
-      // image (pending upload)
-      const src = extractAttr(match[6] ?? '', 'src');
-      const alt = extractAttr(match[6] ?? '', 'alt');
-      if (src) {
-        blocks.push({ type: 'image', __legacySrc: src, __legacyAlt: alt, children: [{ type: 'text', text: '' }] });
-      }
-    }
-
-    lastIndex = index + match[0].length;
-  }
-
-  blocks.push(...paragraphsFromLooseText(value.slice(lastIndex), legacyBaseUrl));
-
-  return blocks.filter((block) => {
-    if (block.type !== 'paragraph') {
-      return true;
-    }
-    const children = (block.children as InlineNode[]) ?? [];
-    return children.some((child) => toStringValue((child as { text?: string }).text));
-  });
-};
-
-// ---------------------------------------------------------------------------
-// descriptions_blog PHP-fragmenten -> bruikbare HTML
-// ---------------------------------------------------------------------------
-
-// De descriptions_blog/*.php bestanden zijn geen losse pagina's, maar
-// Bootstrap-opgemaakte content-fragmenten (section/container/row/col) die
-// ergens in een legacy pagina-template werden ge-include't. Deze functie
-// filtert de layout-wrapper en decoratieve elementen weg zodat enkel
-// headings/paragrafen/lijsten/afbeeldingen overblijven — precies wat
-// htmlToBlocks verwacht.
-const stripPhpPageChrome = (raw: string): string =>
-  raw
-    // php-tags (voor de zekerheid, niet gezien in de voorbeelden maar kan voorkomen)
-    .replace(/<\?php[\s\S]*?\?>/gi, '')
-    // scripts/styles/comments
-    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    // decoratieve icoontjes, bv. <i class="icn-flower ..."></i>
-    .replace(/<i\b[^>]*class="[^"]*\bicn-[^"]*"[^>]*>[\s\S]*?<\/i>/gi, '')
-    // CTA-knoppen (bv. "Ontdek de suggestie routes") zijn geen artikelinhoud
-    .replace(/<a\b[^>]*class="[^"]*\bbtn\b[^"]*"[^>]*>[\s\S]*?<\/a>/gi, '')
-    // lightbox-omhulsel rond afbeeldingen: <a data-glightbox ...><img .../></a>
-    // -> enkel de <img> behouden
-    .replace(/<a\b[^>]*data-glightbox[^>]*>([\s\S]*?)<\/a>/gi, '$1')
-    .replace(/<\/?figure\b[^>]*>/gi, '')
-    // layout-wrappers weg (inhoud blijft staan, enkel de tags verdwijnen)
-    .replace(/<\/?(?:div|section)\b[^>]*>/gi, '');
-
-export const legacyDescriptionHtmlToBlocks = (raw: string, legacyBaseUrl: string): BlockNode[] =>
-  htmlToBlocks(stripPhpPageChrome(raw), legacyBaseUrl);
 
 // ---------------------------------------------------------------------------
 // Media download + upload
@@ -691,116 +460,38 @@ const ensureCategory = async (
 };
 
 // ---------------------------------------------------------------------------
-// descriptions_blog: matchend PHP-bestand opzoeken op VPS-schijf
-// ---------------------------------------------------------------------------
-
-// Zoekt <descriptionsPath>/<slug>.php (root) of <descriptionsPath>/<elke-submap>/<slug>.php
-// (bv. wandeltips/, fietstips/, logietips/). We matchen puur op bestandsnaam,
-// niet op categorie-submap, want de legacy Categorie-waarde in de DB komt
-// niet altijd 1-op-1 overeen met de mapnaam.
-const findDescriptionFile = async (descriptionsPath: string, slug: string): Promise<string | null> => {
-  const target = `${slug}.php`;
-
-  try {
-    const rootEntries = await fs.readdir(descriptionsPath, { withFileTypes: true });
-
-    const rootMatch = rootEntries.find((entry) => entry.isFile() && entry.name === target);
-    if (rootMatch) {
-      return path.join(descriptionsPath, rootMatch.name);
-    }
-
-    const subdirs = rootEntries.filter((entry) => entry.isDirectory());
-    for (const dir of subdirs) {
-      const dirPath = path.join(descriptionsPath, dir.name);
-      try {
-        const dirEntries = await fs.readdir(dirPath, { withFileTypes: true });
-        const match = dirEntries.find((entry) => entry.isFile() && entry.name === target);
-        if (match) {
-          return path.join(dirPath, match.name);
-        }
-      } catch {
-        // submap niet leesbaar, negeren en verdergaan
-      }
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-};
-
-// ---------------------------------------------------------------------------
 // "Pending" image-blocks (uit htmlToBlocks) uploaden en vervangen door
-// echte Strapi blocks image-nodes. Blocks-velden bevatten geen live
-// media-relatie: de volledige media-attributen moeten inline in de JSON
-// staan, vandaar dat we hier de upload-response 1-op-1 in het block zetten.
+// echte Strapi blocks image-nodes. Gebruikt de generieke resolver uit
+// legacy-description-blocks.ts — hier zit enkel de blog-specifieke keuze
+// hoe/waarvandaan geüpload wordt (HTTP fetch, folder "Blog").
 // ---------------------------------------------------------------------------
 
 const resolveImageBlocksInZones = async (
-  zones: Array<{ __component: string; title?: string; content: BlockNode[]; max_width: string }>,
+  zones: DescriptionZone[],
   strapi: Core.Strapi,
   options: ImportOptions,
   mediaCache: Map<string, UploadFileEntity | null>,
   summary: ImportSummary,
   legacyId: number
 ): Promise<void> => {
-  for (const zone of zones) {
-    const resolved: BlockNode[] = [];
+  if (options.skipImages) {
+    await resolvePendingImageBlocks(zones, async () => null);
+    return;
+  }
 
-    for (const block of zone.content) {
-      const legacySrc = (block as { __legacySrc?: string }).__legacySrc;
-      if (legacySrc === undefined) {
-        resolved.push(block);
-        continue;
-      }
+  await resolvePendingImageBlocks(zones, async (legacySrc, legacyAlt) => {
+    const absoluteUrl = legacySrc.startsWith('/') ? `${options.imageBaseUrl}${legacySrc}` : legacySrc;
+    const mediaName = path.basename(legacySrc);
 
-      if (options.skipImages) {
-        continue;
-      }
+    const uploaded = await uploadMediaFromUrl(strapi, absoluteUrl, mediaName, 'Blog', mediaCache, options.dryRun);
 
-      const legacyAlt = (block as { __legacyAlt?: string | null }).__legacyAlt ?? null;
-      const absoluteUrl = legacySrc.startsWith('/') ? `${options.imageBaseUrl}${legacySrc}` : legacySrc;
-      const mediaName = path.basename(legacySrc);
-
-      const uploaded = options.dryRun
-        ? null
-        : await uploadMediaFromUrl(strapi, absoluteUrl, mediaName, 'Blog', mediaCache, options.dryRun);
-
-      if (options.dryRun) {
-        continue;
-      }
-
-      if (!uploaded) {
-        summary.warnings.push(`Blog ${legacyId}: afbeelding in artikeltekst niet gevonden op ${absoluteUrl} — overgeslagen.`);
-        continue;
-      }
-
-      resolved.push({
-        type: 'image',
-        image: {
-          name: uploaded.name,
-          alternativeText: legacyAlt || uploaded.alternativeText || null,
-          url: uploaded.url,
-          caption: uploaded.caption || null,
-          width: uploaded.width ?? 0,
-          height: uploaded.height ?? 0,
-          formats: uploaded.formats || null,
-          hash: uploaded.hash || '',
-          ext: uploaded.ext || path.extname(uploaded.name),
-          mime: uploaded.mime || 'image/jpeg',
-          size: uploaded.size ?? 0,
-          previewUrl: uploaded.previewUrl || null,
-          provider: uploaded.provider || 'local',
-          provider_metadata: uploaded.provider_metadata || null,
-          createdAt: uploaded.createdAt || new Date().toISOString(),
-          updatedAt: uploaded.updatedAt || new Date().toISOString(),
-        },
-        children: [{ type: 'text', text: '' }],
-      });
+    if (!uploaded) {
+      summary.warnings.push(`Blog ${legacyId}: afbeelding in artikeltekst niet gevonden op ${absoluteUrl} — overgeslagen.`);
+      return null;
     }
 
-    zone.content = resolved;
-  }
+    return buildImageBlockFromUploadedMedia(uploaded, legacyAlt);
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -816,7 +507,7 @@ const buildContentDynamicZone = async (
   summary: ImportSummary,
   legacyId: number
 ) => {
-  const zones: Array<{ __component: string; title?: string; content: BlockNode[]; max_width: string }> = [];
+  const zones: DescriptionZone[] = [];
 
   const introBlocks = htmlToBlocks(row.Intro);
   if (introBlocks.length > 0) {
