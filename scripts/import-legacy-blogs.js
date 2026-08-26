@@ -15,6 +15,11 @@
 //   node scripts/import-legacy-blogs.js --only 1,2,3
 //   node scripts/import-legacy-blogs.js
 //   node scripts/import-legacy-blogs.js --config /pad/naar/config.php --host localhost --user routezoeker --password *** --database front_routezoeker
+//
+// --descriptions-path <map>: vult Lange_omschrijving aan vanuit
+//   descriptions_blog/<categorie>/<slug>.php wanneer die leeg is in de DB
+//   (nieuwere posts werden als PHP-paginafragment gecodeerd i.p.v. in het
+//   CMS-veld). De map moet vooraf naar de VPS gekopieerd zijn.
 
 const path = require('node:path');
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
@@ -34,6 +39,7 @@ const parseArgs = () => {
     dryRun: false,
     skipImages: false,
     skipCategory: undefined,
+    descriptionsPath: undefined,
     hostOverride: undefined,
     portOverride: undefined,
     userOverride: undefined,
@@ -101,6 +107,12 @@ const parseArgs = () => {
 
     if (arg === '--skip-category') {
       options.skipCategory = rawArgs[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--descriptions-path') {
+      options.descriptionsPath = rawArgs[index + 1];
       index += 1;
       continue;
     }
