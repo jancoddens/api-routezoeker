@@ -92,8 +92,20 @@ const run = async () => {
         blocks: countBlocks(row.content),
       }));
 
-      // Winnaar: meeste contentblokken; bij gelijkstand de recentst geüpdatete rij.
+      // Winnaar: een GEPUBLICEERDE rij (publishedAt niet null) wint altijd van een
+      // pure draft, ongeacht blokken-aantal -- een draft-only rij is nooit live op
+      // de site, dus die mag nooit voorrang krijgen op een gepubliceerde rij met
+      // minder blokken (zou de post laten verdwijnen van de front-end). Binnen
+      // dezelfde publicatiestatus: meeste contentblokken wint; bij gelijkstand de
+      // recentst geüpdatete rij.
       const winner = [...enriched].sort((a, b) => {
+        const aPublished = a.publishedAt != null ? 1 : 0;
+        const bPublished = b.publishedAt != null ? 1 : 0;
+
+        if (bPublished !== aPublished) {
+          return bPublished - aPublished;
+        }
+
         if (b.blocks !== a.blocks) {
           return b.blocks - a.blocks;
         }
@@ -101,7 +113,10 @@ const run = async () => {
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       })[0];
 
-      console.log(`--- ${slug} (${enriched.length} rijen) ---`);
+      const maxLoserBlocks = Math.max(0, ...enriched.filter((row) => row.id !== winner.id).map((row) => row.blocks));
+      const reviewFlag = maxLoserBlocks > winner.blocks ? '  [LET OP: verwijderde rij had meer blokken -- manueel nakijken]' : '';
+
+      console.log(`--- ${slug} (${enriched.length} rijen)${reviewFlag} ---`);
 
       for (const row of enriched) {
         const mark = row.id === winner.id ? 'BEHOUDEN  ' : 'VERWIJDEREN';
