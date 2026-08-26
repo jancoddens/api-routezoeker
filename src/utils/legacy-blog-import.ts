@@ -683,6 +683,13 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
 
       const content = await buildContentDynamicZone(row, slug, strapi, options, mediaCache, summary, legacyId);
 
+      // publishedAt zit BEWUST niet in deze data -- meegeven aan entityService
+      // create/update triggert Strapi v5's document-publish-flow, wat op 26
+      // augustus 2026 bleek te resulteren in een TWEEDE, apart document per
+      // update i.p.v. het bestaande te updaten (42/43 posts kregen een
+      // duplicaat). We zetten publishedAt daarom hieronder apart via db.query,
+      // rechtstreeks op de rij -- dat raakt het document-versioning-mechanisme
+      // niet aan.
       const data = {
         title,
         slug,
@@ -697,7 +704,6 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
           robots: 'index, follow',
         },
         content,
-        publishedAt: isActive ? legacyPublishedAt ?? new Date().toISOString() : undefined,
       };
 
       if (options.dryRun) {
@@ -705,17 +711,20 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
         continue;
       }
 
-      const existing = (await strapi.entityService.findMany('api::blog-post.blog-post', {
-        filters: { slug: { $eq: slug } },
-        locale: options.locale,
-        limit: 1,
-      })) as unknown as EntityReference[];
+      // Status-onafhankelijke lookup rechtstreeks op de tabel (i.p.v.
+      // entityService.findMany, dat op 26 augustus 2026 bleek bestaande
+      // entries te missen afhankelijk van draft/publish-status, met
+      // duplicaat-documenten tot gevolg).
+      const existing = await strapi.db.query('api::blog-post.blog-post').findOne({
+        where: { slug },
+        select: ['id'],
+      });
 
       let savedId: number | undefined;
 
-      if (Array.isArray(existing) && existing[0]) {
-        await strapi.entityService.update('api::blog-post.blog-post', existing[0].id, { data: data as never });
-        savedId = existing[0].id;
+      if (existing?.id) {
+        await strapi.entityService.update('api::blog-post.blog-post', existing.id, { data: data as never });
+        savedId = existing.id;
         summary.updated += 1;
         summary.rows.push({ id: legacyId, slug, status: 'updated' });
       } else {
@@ -728,10 +737,10 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
         summary.rows.push({ id: legacyId, slug, status: 'created' });
       }
 
-      if (savedId && legacyPublishedAt) {
+      if (savedId && isActive) {
         await strapi.db.query('api::blog-post.blog-post').update({
           where: { id: savedId },
-          data: { publishedAt: legacyPublishedAt },
+          data: { publishedAt: legacyPublishedAt ?? new Date().toISOString() },
         });
       }
     } catch (error) {
