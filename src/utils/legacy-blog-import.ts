@@ -122,6 +122,8 @@ type UploadFolderEntity = {
 type EntityReference = {
   id: number;
   slug?: string;
+  documentId?: string;
+  locale?: string;
 };
 
 type ImportRowResult = {
@@ -675,10 +677,12 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
       const excerpt = resolveExcerpt(row);
       const metaDescription = toStringValue(row.Meta_description) || excerpt;
       const isActive = toStringValue(row.Actief) === '1';
-      // Datum van de oude site (wanneer geplaatst/aangepast). Strapi's
-      // entityService negeert een handmatig meegegeven publishedAt bij
-      // create/update (het zet er altijd "nu" in) — we zetten deze datum
-      // daarom hieronder apart, rechtstreeks via db.query, na de create/update.
+      // Datum van de oude site (wanneer geplaatst/aangepast). Zowel
+      // entityService als documents().publish() negeren een handmatig
+      // meegegeven publishedAt (zetten altijd "nu"); we corrigeren deze datum
+      // daarom achteraf apart via db.query, maar pas NADAT documents().publish()
+      // de aparte published-rij heeft aangemaakt (zie verderop) — zo raken we
+      // nooit de draft-rij aan.
       const legacyPublishedAt = isActive ? toIsoDate(row.Datum_aangepast || row.Datum) : undefined;
 
       const content = await buildContentDynamicZone(row, slug, strapi, options, mediaCache, summary, legacyId);
@@ -687,9 +691,19 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
       // create/update triggert Strapi v5's document-publish-flow, wat op 26
       // augustus 2026 bleek te resulteren in een TWEEDE, apart document per
       // update i.p.v. het bestaande te updaten (42/43 posts kregen een
-      // duplicaat). We zetten publishedAt daarom hieronder apart via db.query,
-      // rechtstreeks op de rij -- dat raakt het document-versioning-mechanisme
-      // niet aan.
+      // duplicaat). We publiceren daarom hieronder apart via
+      // strapi.documents(uid).publish() -- dat maakt een aparte published-rij
+      // aan bovenop de bestaande draft-rij, zonder het document-versioning-
+      // mechanisme te triggeren zoals entityService dat deed.
+      //
+      // LET OP: eerder werd hier rechtstreeks publishedAt via db.query op de
+      // bestaande rij geschreven. Dat zette de ENIGE rij van elk document
+      // in-place om naar "published" i.p.v. er een aparte published-rij naast
+      // te zetten, waardoor alle 46 geïmporteerde documenten zonder draft-rij
+      // kwamen te zitten (0 draft-rijen, bevestigd via SQL op 26 augustus
+      // 2026) -- de Content Manager toont dan altijd "0 entries found" zodra
+      // je zonder ?status=published navigeert. Zie scripts/restore-missing-
+      // drafts.js voor het herstel van de bestaande data.
       const data = {
         title,
         slug,
@@ -717,14 +731,18 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
       // duplicaat-documenten tot gevolg).
       const existing = await strapi.db.query('api::blog-post.blog-post').findOne({
         where: { slug },
-        select: ['id'],
+        select: ['id', 'documentId', 'locale'],
       });
 
       let savedId: number | undefined;
+      let savedDocumentId: string | undefined;
+      let savedLocale: string | undefined;
 
       if (existing?.id) {
         await strapi.entityService.update('api::blog-post.blog-post', existing.id, { data: data as never });
         savedId = existing.id;
+        savedDocumentId = existing.documentId;
+        savedLocale = existing.locale;
         summary.updated += 1;
         summary.rows.push({ id: legacyId, slug, status: 'updated' });
       } else {
@@ -733,15 +751,37 @@ export const importLegacyBlogs = async (strapi: Core.Strapi, rawOptions: Partial
           locale: options.locale,
         })) as unknown as EntityReference;
         savedId = createdPost?.id;
+        savedDocumentId = createdPost?.documentId;
+        savedLocale = createdPost?.locale ?? options.locale;
         summary.created += 1;
         summary.rows.push({ id: legacyId, slug, status: 'created' });
       }
 
-      if (savedId && isActive) {
-        await strapi.db.query('api::blog-post.blog-post').update({
-          where: { id: savedId },
-          data: { publishedAt: legacyPublishedAt ?? new Date().toISOString() },
+      if (savedId && isActive && savedDocumentId) {
+        await strapi.documents('api::blog-post.blog-post').publish({
+          documentId: savedDocumentId,
+          locale: savedLocale,
         });
+
+        // .publish() zet publishedAt altijd op "nu" en accepteert geen custom
+        // datum. We corrigeren daarom enkel de publishedAt van de zonet
+        // aangemaakte PUBLISHED-rij naar de historische datum van de oude
+        // site -- de draft-rij (die .publish() intact laat staan) raken we
+        // hier niet aan, zodat elk document zowel een draft- als een
+        // published-rij behoudt.
+        if (legacyPublishedAt) {
+          const publishedRow = await strapi.db.query('api::blog-post.blog-post').findOne({
+            where: { documentId: savedDocumentId, locale: savedLocale, publishedAt: { $notNull: true } },
+            select: ['id'],
+          });
+
+          if (publishedRow?.id) {
+            await strapi.db.query('api::blog-post.blog-post').update({
+              where: { id: publishedRow.id },
+              data: { publishedAt: legacyPublishedAt },
+            });
+          }
+        }
       }
     } catch (error) {
       summary.errors += 1;
