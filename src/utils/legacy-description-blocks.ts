@@ -372,7 +372,7 @@ export const buildImageBlockFromUploadedMedia = (
     caption: uploaded.caption || null,
     width: uploaded.width ?? 0,
     height: uploaded.height ?? 0,
-    formats: uploaded.formats || null,
+    formats: uploaded.formats || {},
     hash: uploaded.hash || '',
     ext: uploaded.ext || '',
     mime: uploaded.mime || 'image/jpeg',
