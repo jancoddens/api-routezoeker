@@ -29,6 +29,7 @@
     "@turf/turf": "^7.3.4",
     "better-sqlite3": "12.4.1",
     "gpxparser": "^3.0.8",
+    "pm2": "^7.0.4",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.0.0",
