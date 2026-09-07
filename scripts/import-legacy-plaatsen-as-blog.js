@@ -666,6 +666,7 @@ const run = async () => {
     const legacyUrl = toStringValue(row.URL);
     const slug = slugify((legacyUrl || title).replace(/\//g, '-'));
     const excerpt = toStringValue(row.Titel2) || undefined;
+    const region = toStringValue(row.Provincie) || undefined;
 
     const descriptionFile = await findDescriptionFile(options.descriptionsPath, slug);
     const content = [];
@@ -742,6 +743,7 @@ const run = async () => {
       title,
       slug,
       ...(excerpt ? { excerpt } : {}),
+      ...(region ? { region } : {}),
       content,
       ...(coverImageId ? { coverImage: coverImageId } : {}),
       ...(seo ? { seo } : {}),
