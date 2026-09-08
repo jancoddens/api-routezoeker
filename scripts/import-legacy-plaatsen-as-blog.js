@@ -81,6 +81,7 @@ const parseArgs = () => {
     descriptionsPath: undefined,
     skipFaq: false,
     skipRouteLinks: false,
+    skipVideo: false,
     authorId: undefined,
     limit: undefined,
     dryRun: false,
@@ -149,6 +150,11 @@ const parseArgs = () => {
 
     if (arg === '--skip-route-links') {
       options.skipRouteLinks = true;
+      continue;
+    }
+
+    if (arg === '--skip-video') {
+      options.skipVideo = true;
       continue;
     }
 
@@ -347,7 +353,22 @@ const parsePlaceFragment = (rawHtml) => {
     routeLinks.push({ label, url: href });
   });
 
-  // 3) Doorlopende tekst: verwijder eerst alles wat geen lopende prose is
+  // 3) Video-embeds: YouTube-iframes ergens in het fragment (bv. naast de
+  // intro-tekst). We lezen ze uit vóór de opschoning hieronder, die iframes
+  // sowieso verwijdert.
+  const videos = [];
+  const seenVideoUrls = new Set();
+  $('iframe').each((_, el) => {
+    const src = $(el).attr('src');
+    if (!src) return;
+    const decoded = decodeHtmlEntities(src.trim());
+    if (!/youtube\.com|youtu\.be/i.test(decoded)) return;
+    if (seenVideoUrls.has(decoded)) return;
+    seenVideoUrls.add(decoded);
+    videos.push({ url: decoded });
+  });
+
+  // 4) Doorlopende tekst: verwijder eerst alles wat geen lopende prose is
   // (kaartjes, FAQ-blokken, video's, de kaart-placeholder), zodat de
   // resterende h2/h3/p/ul/ol-elementen in documentvolgorde de echte
   // artikeltekst vormen, per tussenkop gegroepeerd.
@@ -376,7 +397,7 @@ const parsePlaceFragment = (rawHtml) => {
   });
   flushSection();
 
-  return { sections, faqs, routeLinks };
+  return { sections, faqs, routeLinks, videos };
 };
 
 // Zet de FAQ-paren om naar HTML die door htmlToBlocks verwerkt kan worden
@@ -652,6 +673,7 @@ const run = async () => {
   let skippedNoTitle = 0;
   let usedDescriptionFile = 0;
   let usedThinDescription = 0;
+  let videosEmbedded = 0;
   const imagesDownloaded = [];
   const imagesFailed = [];
 
@@ -674,7 +696,7 @@ const run = async () => {
     if (descriptionFile) {
       usedDescriptionFile += 1;
       const fragmentHtml = await fs.readFile(descriptionFile, 'utf8');
-      const { sections, faqs, routeLinks } = parsePlaceFragment(fragmentHtml);
+      const { sections, faqs, routeLinks, videos } = parsePlaceFragment(fragmentHtml);
 
       for (const section of sections) {
         const blocks = htmlToBlocks(section.html);
@@ -684,6 +706,16 @@ const run = async () => {
           ...(section.title ? { title: section.title } : {}),
           content: blocks,
         });
+      }
+
+      if (!options.skipVideo && videos.length > 0) {
+        for (const video of videos) {
+          content.push({
+            __component: 'page-blocks.video-embed',
+            youtube_url: video.url,
+          });
+          videosEmbedded += 1;
+        }
       }
 
       if (!options.skipFaq && faqs.length > 0) {
@@ -795,6 +827,7 @@ const run = async () => {
         descriptionsPathPhpFileCount: descriptionsPathPhpFileCount ?? null,
         usedDescriptionFile,
         usedThinDescription,
+        videosEmbedded,
         imagesDownloaded: imagesDownloaded.length,
         imagesFailed,
       },
