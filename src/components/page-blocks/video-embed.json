@@ -1,0 +1,21 @@
+{
+  "collectionName": "components_page_blocks_video_embeds",
+  "info": {
+    "displayName": "video_embed",
+    "icon": "play"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "youtube_url": {
+      "type": "string",
+      "required": true
+    },
+    "caption": {
+      "type": "string"
+    }
+  },
+  "config": {}
+}

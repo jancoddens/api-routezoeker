@@ -66,6 +66,8 @@
         "page-blocks.image-text",
         "page-blocks.image-gallery",
         "page-blocks.image-carousel",
+        "page-blocks.video-embed",
+        "page-blocks.faq",
         "page-blocks.hero-banner",
         "page-blocks.carousel-item",
         "page-blocks.cards",
