@@ -24,6 +24,14 @@
         "audios"
       ]
     },
+    "image_secondary": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files"
+      ]
+    },
     "image_position": {
       "type": "enumeration",
       "default": "right",
@@ -38,7 +46,9 @@
       "enum": [
         "A 3/12",
         "B 4/12",
-        "C 6/12"
+        "C 6/12",
+        "D 8/12",
+        "E 9/12"
       ]
     },
     "button_label": {
