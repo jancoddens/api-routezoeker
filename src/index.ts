@@ -20,6 +20,7 @@ export default {
    */
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     await configurePasswordResetEmail(strapi);
+    await ensurePartnerDashboardPermissions(strapi);
 
     const autofillUpdatesInFlight = new Set<number>();
 
@@ -81,6 +82,43 @@ const configurePasswordResetEmail = async (strapi: Core.Strapi) => {
       },
     },
   });
+};
+
+// Het logie-dashboard (/api/me/partners/...) moet bruikbaar zijn voor elke
+// aangemelde gebruiker; de controller controleert zelf of de gebruiker
+// manager is van de logie. Zo hoeft niemand dit manueel aan te vinken onder
+// Users & Permissions > Roles > Authenticated.
+const PARTNER_DASHBOARD_ACTIONS = [
+  'api::partner.partner.myPartners',
+  'api::partner.partner.myPartner',
+  'api::partner.partner.updateMyPartner',
+  'api::partner.partner.uploadMyPartnerMedia',
+];
+
+const ensurePartnerDashboardPermissions = async (strapi: Core.Strapi) => {
+  try {
+    const role = await strapi.db
+      .query('plugin::users-permissions.role')
+      .findOne({ where: { type: 'authenticated' }, select: ['id'] });
+
+    if (!role) return;
+
+    const existing = await strapi.db.query('plugin::users-permissions.permission').findMany({
+      where: { role: { id: role.id }, action: { $in: PARTNER_DASHBOARD_ACTIONS } },
+      select: ['action'],
+    });
+    const existingActions = new Set(existing.map((permission: { action: string }) => permission.action));
+
+    for (const action of PARTNER_DASHBOARD_ACTIONS) {
+      if (!existingActions.has(action)) {
+        await strapi.db.query('plugin::users-permissions.permission').create({
+          data: { action, role: role.id },
+        });
+      }
+    }
+  } catch (error) {
+    strapi.log.error('[partner-dashboard] rechten voor Authenticated konden niet gezet worden', error);
+  }
 };
 
 const shouldRunGpxAutofill = (updateData: unknown) => {

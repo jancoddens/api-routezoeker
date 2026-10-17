@@ -216,6 +216,16 @@
       "relation": "manyToMany",
       "target": "api::poi.poi",
       "inversedBy": "partners"
+    },
+    "managers": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user",
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
     }
   }
 }
