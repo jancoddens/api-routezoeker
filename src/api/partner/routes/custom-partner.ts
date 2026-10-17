@@ -13,6 +13,18 @@ export default {
       handler: 'partner.myPartners',
     },
     {
+      method: 'POST',
+      path: '/me/partners/claim',
+      handler: 'partner.claimPartnerInvite',
+    },
+    {
+      // Publiek: toont enkel de naam van de logie bij een geldige code.
+      method: 'GET',
+      path: '/partner-invites/:code',
+      handler: 'partner.partnerInvite',
+      config: { auth: false },
+    },
+    {
       method: 'GET',
       path: '/me/partners/:documentId',
       handler: 'partner.myPartner',

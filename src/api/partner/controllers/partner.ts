@@ -10,6 +10,7 @@
  */
 
 import { factories } from '@strapi/strapi';
+import { rotateInviteCode } from '../../../utils/partner-invite';
 
 const UID = 'api::partner.partner';
 const FILE_UID = 'plugin::upload.file';
@@ -214,7 +215,84 @@ export default factories.createCoreController(UID, ({ strapi }) => {
     }
   };
 
+  const findPartnerByInviteCode = async (code: unknown) => {
+    const value = typeof code === 'string' ? code.trim() : '';
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(value)) return null;
+
+    const row = await strapi.db.query(UID).findOne({
+      where: { invite_code: value },
+      select: ['documentId', 'locale'],
+    });
+    if (!row) return null;
+
+    const rows = await strapi.db.query(UID).findMany({
+      where: { documentId: row.documentId },
+      select: ['locale', 'name', 'type', 'publishedAt'],
+    });
+    const preferred =
+      rows.find((r: any) => r.locale === DEFAULT_LOCALE && !r.publishedAt) ??
+      rows.find((r: any) => r.locale === DEFAULT_LOCALE) ??
+      rows[0];
+
+    return {
+      documentId: row.documentId as string,
+      name: (preferred?.name as string) ?? '',
+      type: (preferred?.type as string) ?? null,
+      draftLocales: [...new Set(rows.filter((r: any) => !r.publishedAt).map((r: any) => r.locale))] as string[],
+    };
+  };
+
   return {
+    async partnerInvite(ctx) {
+      const partner = await findPartnerByInviteCode(ctx.params?.code);
+      if (!partner) return ctx.notFound('Deze link is ongeldig of werd al gebruikt.');
+      return { name: partner.name, type: partner.type };
+    },
+
+    async claimPartnerInvite(ctx) {
+      const user = requireUser(ctx);
+      if (!user) return;
+
+      const body = ctx.request.body?.data ?? ctx.request.body ?? {};
+      const partner = await findPartnerByInviteCode(body.code);
+      if (!partner) return ctx.badRequest('Deze link is ongeldig of werd al gebruikt.');
+
+      const alreadyManager = await strapi.db.query(UID).findOne({
+        where: { documentId: partner.documentId, managers: { id: user.id } },
+        select: ['id'],
+      });
+
+      if (!alreadyManager) {
+        // Koppelen op de concept-versie(s); het dashboard kijkt naar alle
+        // versies, dus er hoeft niets (her)gepubliceerd te worden.
+        for (const locale of partner.draftLocales) {
+          await strapi.documents(UID).update({
+            documentId: partner.documentId,
+            locale,
+            data: { managers: { connect: [{ id: user.id }] } },
+          } as any);
+        }
+      }
+
+      // Link is eenmalig: meteen een nieuwe code.
+      await rotateInviteCode(strapi, partner.documentId);
+
+      const to = process.env.PARTNER_EDIT_NOTIFY_EMAIL;
+      if (to && !alreadyManager) {
+        try {
+          await strapi.plugin('email').service('email').send({
+            to,
+            subject: `Logie gekoppeld: ${partner.name}`,
+            text: `${user.email || user.username} is via de uitnodigingslink gekoppeld als beheerder van "${partner.name}".`,
+          });
+        } catch (error) {
+          strapi.log.warn('[partner-invite] notificatiemail kon niet verstuurd worden', error);
+        }
+      }
+
+      return { documentId: partner.documentId, name: partner.name };
+    },
+
     async myPartners(ctx) {
       const user = requireUser(ctx);
       if (!user) return;

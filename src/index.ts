@@ -1,6 +1,7 @@
 import type { Core } from '@strapi/strapi';
 
 import { buildRouteAutofill } from './utils/gpx-autofill';
+import { ensurePartnerInviteCodes } from './utils/partner-invite';
 
 export default {
   /**
@@ -21,6 +22,7 @@ export default {
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     await configurePasswordResetEmail(strapi);
     await ensurePartnerDashboardPermissions(strapi);
+    await ensurePartnerInviteCodes(strapi);
 
     const autofillUpdatesInFlight = new Set<number>();
 
@@ -93,6 +95,7 @@ const PARTNER_DASHBOARD_ACTIONS = [
   'api::partner.partner.myPartner',
   'api::partner.partner.updateMyPartner',
   'api::partner.partner.uploadMyPartnerMedia',
+  'api::partner.partner.claimPartnerInvite',
 ];
 
 const ensurePartnerDashboardPermissions = async (strapi: Core.Strapi) => {
