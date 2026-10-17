@@ -25,6 +25,37 @@
     "locale": {
       "type": "string",
       "default": "nl"
+    },
+    "postcode": {
+      "type": "string"
+    },
+    "birth_date": {
+      "type": "date"
+    },
+    "gender": {
+      "type": "string"
+    },
+    "walking_club": {
+      "type": "string"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "legacy_user_controlnumber": {
+      "type": "string",
+      "unique": true
+    },
+    "legacy_rechten": {
+      "type": "integer"
+    },
+    "legacy_status": {
+      "type": "integer"
+    },
+    "legacy_created_at": {
+      "type": "datetime"
+    },
+    "legacy_last_login_at": {
+      "type": "datetime"
     }
   }
 }

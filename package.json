@@ -15,6 +15,7 @@
     "import:legacy-node-networks": "node scripts/import-legacy-node-networks.js",
     "import:legacy-bikes": "node scripts/import-legacy-bikes.js",
     "import:legacy-walks": "node scripts/import-legacy-walks.js",
+    "import:legacy-users": "node scripts/import-legacy-users.js",
     "import:node-network": "node scripts/import-node-network.js",
     "start": "strapi start",
     "strapi": "strapi",
