@@ -20,7 +20,8 @@
     "start": "strapi start",
     "strapi": "strapi",
     "upgrade": "npx @strapi/upgrade latest",
-    "upgrade:dry": "npx @strapi/upgrade latest --dry"
+    "upgrade:dry": "npx @strapi/upgrade latest --dry",
+    "import:legacy-partner-stats": "node scripts/import-legacy-partner-stats.js"
   },
   "dependencies": {
     "@strapi/plugin-cloud": "^5.38.0",
