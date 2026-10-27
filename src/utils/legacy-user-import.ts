@@ -48,7 +48,7 @@ type ProfielRow = {
   postcode: string;
   country: string;
   walkingClub: string;
-  createdAt: string;
+  createdAt: string | null;
   lastLoginAt: string | null; // null = placeholder (0000-00-00 ...)
   status: number;
   avatar: string;
@@ -86,6 +86,7 @@ export type ImportReport = {
     passwordFormats: { bcrypt: number; md5: number; unknown: number };
     statusZeroCount: number;
     elevatedRechtenRows: Array<{ email: string; rechten: number }>;
+    profileFailed: number;
   };
   newsletter: {
     totalRows: number;
@@ -247,6 +248,16 @@ function normalizeDate(raw: string, placeholders: string[]): string | null {
   if (!raw || placeholders.includes(raw)) {
     return null;
   }
+  // MySQL "nul-datums" (0000-00-00, 2001-00-00, 1980-05-00, ...) en andere
+  // onbruikbare waarden zijn voor Strapi ongeldig -> behandelen als leeg.
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (!match) {
+    return null;
+  }
+  const [, year, month, day] = match.map(Number);
+  if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
   return raw;
 }
 
@@ -304,7 +315,7 @@ function parseProfielSql(filePath: string): ProfielRow[] {
     postcode: r.Postcode,
     country: r.Land,
     walkingClub: r.Wandelclub,
-    createdAt: r.Creatie_datum,
+    createdAt: normalizeDate(r.Creatie_datum, []),
       lastLoginAt: normalizeDate(r.Laatste_login_datum, ['0000-00-00 00:00:00']),
       status: Number(r.Status) || 0,
       avatar: r.Afbeelding,
@@ -387,6 +398,7 @@ export async function importLegacyUsers(strapi: any, options: ImportOptions): Pr
       passwordFormats: { bcrypt: 0, md5: 0, unknown: 0 },
       statusZeroCount: 0,
       elevatedRechtenRows: [],
+      profileFailed: 0,
     },
     newsletter: {
       totalRows: 0,
@@ -552,15 +564,25 @@ export async function importLegacyUsers(strapi: any, options: ImportOptions): Pr
         user: userId,
       };
 
-      const existingProfileForUser = await strapi.entityService.findMany(USER_PROFILE_UID, {
-        filters: { user: userId },
-        limit: 1,
-      });
+      // Een fout in de (optionele) profielgegevens mag de import van de
+      // overige accounts nooit stoppen: het account zelf bestaat al.
+      try {
+        const existingProfileForUser = await strapi.entityService.findMany(USER_PROFILE_UID, {
+          filters: { user: userId },
+          limit: 1,
+        });
 
-      if (existingProfileForUser?.[0]) {
-        await strapi.entityService.update(USER_PROFILE_UID, existingProfileForUser[0].id, { data: profileData });
-      } else {
-        await strapi.entityService.create(USER_PROFILE_UID, { data: profileData });
+        if (existingProfileForUser?.[0]) {
+          await strapi.entityService.update(USER_PROFILE_UID, existingProfileForUser[0].id, { data: profileData });
+        } else {
+          await strapi.entityService.create(USER_PROFILE_UID, { data: profileData });
+        }
+      } catch (error: any) {
+        report.profiel.profileFailed += 1;
+        const details = error?.details?.errors ? ` ${JSON.stringify(error.details.errors)}` : '';
+        addWarning(
+          `Profiel van legacy ID ${row.legacyId} (${row.email}) kon niet worden opgeslagen: ${error?.message ?? error}${details}`,
+        );
       }
     }
 
