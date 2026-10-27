@@ -31,7 +31,7 @@ const { promisify } = require('node:util');
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
 
 const execFileAsync = promisify(execFile);
-const DEFAULT_CONFIG = '/var/www/vhosts/routezoeker.com/api.routezoeker.com/legacy-import/config.php';
+const DEFAULT_CONFIG = '/var/www/vhosts/routezoeker.com/httpdocs/config.php';
 const TARGET_TABLE = 'partner_legacy_monthly_statistics';
 
 const parseArgs = () => {
