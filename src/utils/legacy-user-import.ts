@@ -94,6 +94,8 @@ export type ImportReport = {
     updated: number;
     matchedToUser: number;
     orphan: number;
+    skippedInvalidEmail: number;
+    failed: number;
   };
   warnings: string[];
   samples: Array<Record<string, unknown>>;
@@ -393,6 +395,8 @@ export async function importLegacyUsers(strapi: any, options: ImportOptions): Pr
       updated: 0,
       matchedToUser: 0,
       orphan: 0,
+      skippedInvalidEmail: 0,
+      failed: 0,
     },
     warnings: [],
     samples: [],
@@ -575,8 +579,14 @@ export async function importLegacyUsers(strapi: any, options: ImportOptions): Pr
   for (const row of newsletterRows) {
     report.newsletter.processed += 1;
 
-    if (!row.email || !row.email.includes('@')) {
-      addWarning(`Nieuwsbrief-rij met legacy ID ${row.legacyId} heeft geen (geldig) e-mailadres -- overgeslagen.`);
+    // Zelfde soort check als Strapi's eigen email-validatie: een ongeldig
+    // adres (spatie, geen punt in het domein, ...) zou anders de hele import
+    // laten crashen bij entityService.create.
+    if (!row.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+      addWarning(
+        `Nieuwsbrief-rij met legacy ID ${row.legacyId} heeft geen geldig e-mailadres (${JSON.stringify(row.email)}) -- overgeslagen.`,
+      );
+      report.newsletter.skippedInvalidEmail += 1;
       continue;
     }
 
@@ -603,17 +613,26 @@ export async function importLegacyUsers(strapi: any, options: ImportOptions): Pr
       continue;
     }
 
-    const existing = await strapi.entityService.findMany(NEWSLETTER_UID, {
-      filters: { email: row.email },
-      limit: 1,
-    });
+    // Eén foute rij mag nooit de rest van de nieuwsbrief-import tegenhouden.
+    try {
+      const existing = await strapi.entityService.findMany(NEWSLETTER_UID, {
+        filters: { email: row.email },
+        limit: 1,
+      });
 
-    if (existing?.[0]) {
-      await strapi.entityService.update(NEWSLETTER_UID, existing[0].id, { data: subscriptionData });
-      report.newsletter.updated += 1;
-    } else {
-      await strapi.entityService.create(NEWSLETTER_UID, { data: subscriptionData });
-      report.newsletter.created += 1;
+      if (existing?.[0]) {
+        await strapi.entityService.update(NEWSLETTER_UID, existing[0].id, { data: subscriptionData });
+        report.newsletter.updated += 1;
+      } else {
+        await strapi.entityService.create(NEWSLETTER_UID, { data: subscriptionData });
+        report.newsletter.created += 1;
+      }
+    } catch (error: any) {
+      report.newsletter.failed += 1;
+      const details = error?.details?.errors ? ` ${JSON.stringify(error.details.errors)}` : '';
+      addWarning(
+        `Nieuwsbrief-rij met legacy ID ${row.legacyId} (${row.email}) kon niet worden opgeslagen: ${error?.message ?? error}${details}`,
+      );
     }
   }
 
