@@ -24,10 +24,10 @@
     "import:legacy-partner-stats": "node scripts/import-legacy-partner-stats.js"
   },
   "dependencies": {
-    "@strapi/plugin-cloud": "^5.38.0",
-    "@strapi/plugin-users-permissions": "^5.38.0",
-    "@strapi/provider-email-nodemailer": "^5.38.0",
-    "@strapi/strapi": "^5.38.0",
+    "@strapi/plugin-cloud": "5.60.0",
+    "@strapi/plugin-users-permissions": "5.60.0",
+    "@strapi/provider-email-nodemailer": "5.60.0",
+    "@strapi/strapi": "5.60.0",
     "@turf/turf": "^7.3.4",
     "better-sqlite3": "12.4.1",
     "gpxparser": "^3.0.8",
