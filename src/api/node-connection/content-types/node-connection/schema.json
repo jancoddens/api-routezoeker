@@ -36,6 +36,13 @@
     },
     "geometry": {
       "type": "json"
+    },
+    "mode": {
+      "type": "enumeration",
+      "enum": [
+        "wandelen",
+        "fietsen"
+      ]
     }
   }
 }

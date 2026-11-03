@@ -38,6 +38,7 @@ type ConnectionRow = {
   id: number;
   distance_km?: number | string | null;
   geometry?: unknown;
+  mode?: string | null;
   // from_node / to_node zijn manyToMany in het schema: Strapi geeft een lijst terug.
   from_node?: RelationValue;
   to_node?: RelationValue;
@@ -94,7 +95,7 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
   let missingEndpoints = 0;
   for (let offset = 0; ; offset += CONNECTION_BATCH) {
     const batch = (await strapi.db.query('api::node-connection.node-connection').findMany({
-      select: ['id', 'distance_km', 'geometry'],
+      select: ['id', 'distance_km', 'geometry', 'mode'],
       populate: {
         from_node: { select: ['id'] },
         to_node: { select: ['id'] },
@@ -110,8 +111,19 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
       // Verbindingen uit de officiële dataset hangen vaak niet aan een netwerk:
       // die tellen als wandelen. Hangt een verbinding wel aan een netwerk, dan
       // moet dat netwerk gepubliceerd zijn.
+      // Modus: expliciet veld (sync Toerisme Vlaanderen), anders het thema van
+      // het netwerk, anders wandelen.
       const networkId = relationId(row.node_network);
-      const mode = networkId !== null ? modeByNetworkId.get(networkId) : DEFAULT_MODE;
+      if (networkId !== null && !modeByNetworkId.has(networkId)) {
+        skippedUnpublished++;
+        continue;
+      }
+      const mode: PlannerMode | undefined =
+        row.mode === 'wandelen' || row.mode === 'fietsen'
+          ? row.mode
+          : networkId !== null
+            ? modeByNetworkId.get(networkId)
+            : DEFAULT_MODE;
       if (!mode) {
         skippedUnpublished++;
         continue;
