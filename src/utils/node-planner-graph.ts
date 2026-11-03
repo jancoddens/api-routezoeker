@@ -80,6 +80,18 @@ const toNumber = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+/**
+ * Knooppuntnummer zoals op het bordje. Punten zonder nummer (bronwaarde -9999,
+ * 0, leeg) zijn kruispunten zonder bord: die krijgen een lege string.
+ */
+export const normalizeNodeNumber = (value: unknown): string => {
+  const text = String(value ?? '').trim();
+  if (!text || text.startsWith('-')) return '';
+  const numeric = Number(text);
+  if (Number.isFinite(numeric) && numeric <= 0) return '';
+  return text;
+};
+
 const round = (value: number) => Math.round(value * COORD_DECIMALS) / COORD_DECIMALS;
 
 export const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
@@ -224,7 +236,7 @@ export const buildPlannerGraph = (
     if (lat === null || lng === null || (lat === 0 && lng === 0)) continue;
     allNodes.set(raw.id, {
       id: raw.id,
-      n: String(raw.number ?? '').trim() || '?',
+      n: normalizeNodeNumber(raw.number),
       lat,
       lng,
       modes: 0,

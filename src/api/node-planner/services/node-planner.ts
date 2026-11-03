@@ -20,6 +20,7 @@ import {
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const NODE_BATCH = 5000;
 const CONNECTION_BATCH = 1000;
+const DEFAULT_MODE: PlannerMode = 'wandelen';
 
 let cachedGraph: PlannerGraph | null = null;
 let loadingGraph: Promise<PlannerGraph> | null = null;
@@ -80,6 +81,8 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
   }
 
   const connections: RawPlannerConnection[] = [];
+  let rawConnectionCount = 0;
+  let skippedUnpublished = 0;
   for (let offset = 0; ; offset += CONNECTION_BATCH) {
     const batch = (await strapi.db.query('api::node-connection.node-connection').findMany({
       select: ['id', 'distance_km', 'geometry'],
@@ -92,10 +95,19 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
       offset,
       limit: CONNECTION_BATCH,
     })) as ConnectionRow[];
+    rawConnectionCount += batch.length;
 
     for (const row of batch) {
-      const mode = row.node_network ? modeByNetworkId.get(row.node_network.id) : undefined;
-      if (!mode) continue; // netwerk niet gepubliceerd of verbinding zonder netwerk
+      // Verbindingen uit de officiële dataset hangen vaak niet aan een netwerk:
+      // die tellen als wandelen. Hangt een verbinding wel aan een netwerk, dan
+      // moet dat netwerk gepubliceerd zijn.
+      const mode = row.node_network
+        ? modeByNetworkId.get(row.node_network.id)
+        : DEFAULT_MODE;
+      if (!mode) {
+        skippedUnpublished++;
+        continue;
+      }
 
       connections.push({
         id: row.id,
@@ -115,7 +127,7 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
   strapi.log.info(
     `[node-planner] graaf geladen: ${graph.nodes.size} knooppunten, ${graph.edges.length} verbindingen in ${
       Date.now() - started
-    } ms`
+    } ms (bron: ${nodes.length} knooppunten, ${rawConnectionCount} verbindingen, ${skippedUnpublished} overgeslagen want netwerk niet gepubliceerd)`
   );
 
   return graph;
