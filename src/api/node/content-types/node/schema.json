@@ -55,6 +55,10 @@
       "relation": "manyToMany",
       "target": "api::node-connection.node-connection",
       "mappedBy": "to_node"
+    },
+    "is_virtual": {
+      "type": "boolean",
+      "default": false
     }
   }
 }

@@ -17,6 +17,7 @@ export type RawPlannerNode = {
   number: string | null;
   latitude: number | string | null;
   longitude: number | string | null;
+  isVirtual?: boolean | null;
 };
 
 export type RawPlannerConnection = {
@@ -26,6 +27,7 @@ export type RawPlannerConnection = {
   distanceKm: number | string | null;
   geometry: unknown;
   mode: PlannerMode;
+  isVirtual?: boolean | null;
 };
 
 export type PlannerNode = {
@@ -33,6 +35,8 @@ export type PlannerNode = {
   n: string;
   lat: number;
   lng: number;
+  /** virtueel netwerk: geen bordjes op het terrein */
+  v: boolean;
   /** bitmask van modes waarin dit knooppunt verbindingen heeft */
   modes: number;
 };
@@ -43,6 +47,8 @@ export type PlannerEdge = {
   b: number;
   km: number;
   mode: PlannerMode;
+  /** virtueel traject: geen bordjes op het terrein */
+  v: boolean;
   /** platte lijst [lat, lng, lat, lng, ...], georiënteerd van a naar b */
   coords: number[];
   minLat: number;
@@ -239,6 +245,7 @@ export const buildPlannerGraph = (
       n: normalizeNodeNumber(raw.number),
       lat,
       lng,
+      v: Boolean(raw.isVirtual),
       modes: 0,
     });
   }
@@ -298,6 +305,7 @@ export const buildPlannerGraph = (
       b: b.id,
       km: Math.round(km * 1000) / 1000,
       mode: raw.mode,
+      v: Boolean(raw.isVirtual),
       coords: simplified,
       minLat,
       minLng,

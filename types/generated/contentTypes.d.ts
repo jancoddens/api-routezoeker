@@ -1220,6 +1220,7 @@ export interface ApiNodeConnectionNodeConnection
     external_id: Schema.Attribute.String;
     from_node: Schema.Attribute.Relation<'manyToMany', 'api::node.node'>;
     geometry: Schema.Attribute.JSON;
+    is_virtual: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1373,6 +1374,7 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     external_id: Schema.Attribute.String;
+    is_virtual: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     latitude: Schema.Attribute.Decimal;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::node.node'> &

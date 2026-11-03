@@ -7,8 +7,8 @@
  *   -> kortste pad over het knooppuntennetwerk
  *
  * Compacte antwoorden:
- *   node = [id, nummer, lat, lng]
- *   edge = [id, vanId, naarId, km, [lat, lng, lat, lng, ...]]
+ *   node = [id, nummer, lat, lng, virtueel (0/1)]
+ *   edge = [id, vanId, naarId, km, [lat, lng, lat, lng, ...], virtueel (0/1)]
  */
 
 import type { Core } from '@strapi/strapi';
@@ -26,7 +26,7 @@ import {
 const MAX_BBOX_LNG_SPAN = 0.6;
 const MAX_BBOX_LAT_SPAN = 0.4;
 
-const nodeTuple = (node: PlannerNode) => [node.id, node.n, node.lat, node.lng];
+const nodeTuple = (node: PlannerNode) => [node.id, node.n, node.lat, node.lng, node.v ? 1 : 0];
 
 const getGraph = (strapi: Core.Strapi): Promise<PlannerGraph> =>
   strapi.service('api::node-planner.node-planner').getGraph();
@@ -62,7 +62,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
       mode,
       truncated: result.truncated,
       nodes: result.nodes.map(nodeTuple),
-      edges: result.edges.map((edge) => [edge.id, edge.a, edge.b, edge.km, edge.coords]),
+      edges: result.edges.map((edge) => [edge.id, edge.a, edge.b, edge.km, edge.coords, edge.v ? 1 : 0]),
     };
   },
 
@@ -93,6 +93,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
         path.nodeIds[index + 1],
         step.edge.km,
         stepCoords(step),
+        step.edge.v ? 1 : 0,
       ]),
     };
   },

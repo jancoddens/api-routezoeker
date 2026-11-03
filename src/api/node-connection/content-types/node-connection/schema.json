@@ -43,6 +43,10 @@
         "wandelen",
         "fietsen"
       ]
+    },
+    "is_virtual": {
+      "type": "boolean",
+      "default": false
     }
   }
 }

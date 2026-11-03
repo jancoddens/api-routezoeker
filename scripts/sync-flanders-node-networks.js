@@ -177,6 +177,9 @@ const findAll = async (strapi, uid, params) => {
   return rows;
 };
 
+/** "virtual network" = virtueel netwerk zonder bordjes; "signposted network" = bewegwijzerd. */
+const isVirtualValue = (value) => /virtual/i.test(String(value || '')) && !/signposted/i.test(String(value || ''));
+
 const relationId = (value) => {
   const item = Array.isArray(value) ? value[0] : value;
   return item && typeof item.id === 'number' ? item.id : null;
@@ -198,6 +201,7 @@ const normalizeSourceNodes = (features, mode) => {
       name: p.naam ? String(p.naam) : '',
       latitude: round6(coords[1]),
       longitude: round6(coords[0]),
+      isVirtual: isVirtualValue(p.virtual),
       mode,
     });
   }
@@ -230,6 +234,7 @@ const normalizeSourceConnections = (features, mode) => {
           coordinates: roundCoordinates(feature.geometry.coordinates),
         },
         networkName: p.naam ? String(p.naam) : '',
+        isVirtual: isVirtualValue(p.virtual),
         mode,
       });
     });
@@ -306,7 +311,7 @@ const run = async () => {
 
     // 3. Knooppunten.
     const existingNodes = await findAll(strapi, NODE_UID, {
-      select: ['id', 'external_id', 'number', 'name', 'latitude', 'longitude'],
+      select: ['id', 'external_id', 'number', 'name', 'latitude', 'longitude', 'is_virtual'],
     });
     // Bij dubbels (zelfde external_id) houden we de oudste rij (laagste id).
     const nodeByExternalId = new Map();
@@ -330,6 +335,7 @@ const run = async () => {
       const changed =
         String(row.number ?? '') !== node.number ||
         String(row.name ?? '') !== node.name ||
+        Boolean(row.is_virtual) !== node.isVirtual ||
         Math.abs(Number(row.latitude) - node.latitude) > 1e-6 ||
         Math.abs(Number(row.longitude) - node.longitude) > 1e-6;
       if (changed) nodeUpdates.push({ id: row.id, node });
@@ -342,6 +348,7 @@ const run = async () => {
       name: node.name,
       latitude: node.latitude,
       longitude: node.longitude,
+      is_virtual: node.isVirtual,
     });
 
     log(`Knooppunten: ${nodeCreates.length} nieuw, ${nodeUpdates.length} gewijzigd, ${stats.nodesUnchanged} ongewijzigd`);
@@ -370,7 +377,7 @@ const run = async () => {
 
     // 4. Verbindingen.
     const existingConnections = await findAll(strapi, CONNECTION_UID, {
-      select: ['id', 'external_id', 'distance_km', 'geometry', 'mode'],
+      select: ['id', 'external_id', 'distance_km', 'geometry', 'mode', 'is_virtual'],
       populate: {
         from_node: { select: ['id'] },
         to_node: { select: ['id'] },
@@ -427,6 +434,7 @@ const run = async () => {
         relationId(row.to_node) !== toId ||
         relationId(row.node_network) !== networkId ||
         row.mode !== connection.mode ||
+        Boolean(row.is_virtual) !== connection.isVirtual ||
         Math.abs(Number(row.distance_km || 0) - Number(connection.distanceKm || 0)) > 0.001 ||
         JSON.stringify(roundCoordinates(row.geometry && row.geometry.coordinates)) !==
           JSON.stringify(connection.geometry.coordinates);
@@ -443,6 +451,7 @@ const run = async () => {
       distance_km: target.distanceKm,
       geometry: target.geometry,
       mode: target.mode,
+      is_virtual: target.isVirtual,
     });
 
     log(

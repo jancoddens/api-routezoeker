@@ -39,6 +39,7 @@ type ConnectionRow = {
   distance_km?: number | string | null;
   geometry?: unknown;
   mode?: string | null;
+  is_virtual?: boolean | null;
   // from_node / to_node zijn manyToMany in het schema: Strapi geeft een lijst terug.
   from_node?: RelationValue;
   to_node?: RelationValue;
@@ -80,12 +81,14 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
   const nodes: RawPlannerNode[] = [];
   for (let offset = 0; ; offset += NODE_BATCH) {
     const batch = (await strapi.db.query('api::node.node').findMany({
-      select: ['id', 'number', 'latitude', 'longitude'],
+      select: ['id', 'number', 'latitude', 'longitude', 'is_virtual'],
       orderBy: { id: 'asc' },
       offset,
       limit: NODE_BATCH,
     })) as RawPlannerNode[];
-    nodes.push(...batch);
+    nodes.push(
+      ...batch.map((row) => ({ ...row, isVirtual: (row as { is_virtual?: boolean }).is_virtual ?? false }))
+    );
     if (batch.length < NODE_BATCH) break;
   }
 
@@ -95,7 +98,7 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
   let missingEndpoints = 0;
   for (let offset = 0; ; offset += CONNECTION_BATCH) {
     const batch = (await strapi.db.query('api::node-connection.node-connection').findMany({
-      select: ['id', 'distance_km', 'geometry', 'mode'],
+      select: ['id', 'distance_km', 'geometry', 'mode', 'is_virtual'],
       populate: {
         from_node: { select: ['id'] },
         to_node: { select: ['id'] },
@@ -143,6 +146,7 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
         distanceKm: row.distance_km ?? null,
         geometry: row.geometry,
         mode,
+        isVirtual: row.is_virtual ?? false,
       });
     }
 
