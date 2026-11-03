@@ -130,6 +130,8 @@ export default factories.createCoreService('api::node-network.node-network', ({ 
 
     try {
       const result = await syncOfficialNodeNetwork(strapi, nodeNetwork, options);
+      // Knooppuntenplanner moet de nieuwe knooppunten/verbindingen opnieuw laden.
+      strapi.service('api::node-planner.node-planner')?.invalidate?.();
       await updateImportStatus(strapi, nodeNetworkId, {
         last_imported_at: new Date().toISOString(),
         last_import_status: 'success',
