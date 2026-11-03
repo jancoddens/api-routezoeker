@@ -43,6 +43,10 @@ export interface PageBlocksArticleGrid extends Struct.ComponentSchema {
   };
   attributes: {
     card: Schema.Attribute.Component<'page-blocks.cards', true>;
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
     subtitle: Schema.Attribute.String;
     title: Schema.Attribute.String;
   };
@@ -75,6 +79,35 @@ export interface PageBlocksCarouselItem extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksFaq extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_faqs';
+  info: {
+    displayName: 'faq';
+    icon: 'question';
+  };
+  attributes: {
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
+    items: Schema.Attribute.Component<'page-blocks.faq-item', true>;
+    title: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'Veelgestelde vragen'>;
+  };
+}
+
+export interface PageBlocksFaqItem extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_faq_items';
+  info: {
+    displayName: 'faq_item';
+    icon: 'question';
+  };
+  attributes: {
+    answer: Schema.Attribute.Blocks & Schema.Attribute.Required;
+    question: Schema.Attribute.String & Schema.Attribute.Required;
+  };
+}
+
 export interface PageBlocksHeroBanner extends Struct.ComponentSchema {
   collectionName: 'components_page_blocks_hero_banners';
   info: {
@@ -90,6 +123,10 @@ export interface PageBlocksHeroBanner extends Struct.ComponentSchema {
     button_label: Schema.Attribute.String;
     button_link: Schema.Attribute.String;
     eyebrow: Schema.Attribute.String;
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
     subtitle: Schema.Attribute.String;
     title: Schema.Attribute.String;
   };
@@ -135,10 +172,17 @@ export interface PageBlocksImageText extends Struct.ComponentSchema {
     button_link: Schema.Attribute.String;
     content: Schema.Attribute.Blocks;
     eyebrow: Schema.Attribute.String;
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
     image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
     image_position: Schema.Attribute.Enumeration<['left', 'right']> &
       Schema.Attribute.DefaultTo<'right'>;
-    image_width: Schema.Attribute.Enumeration<['A 3/12', 'B 4/12', 'C 6/12']> &
+    image_secondary: Schema.Attribute.Media<'images' | 'files'>;
+    image_width: Schema.Attribute.Enumeration<
+      ['A 3/12', 'B 4/12', 'C 6/12', 'D 8/12', 'E 9/12']
+    > &
       Schema.Attribute.DefaultTo<'C 6/12'>;
     title: Schema.Attribute.String;
   };
@@ -152,6 +196,10 @@ export interface PageBlocksList extends Struct.ComponentSchema {
   };
   attributes: {
     active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
     type: Schema.Attribute.Enumeration<['list', 'map', 'ol']> &
       Schema.Attribute.DefaultTo<'list'>;
   };
@@ -163,6 +211,10 @@ export interface PageBlocksPartner extends Struct.ComponentSchema {
     displayName: 'partner';
   };
   attributes: {
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
     subtitle: Schema.Attribute.String;
     title: Schema.Attribute.String;
     type: Schema.Attribute.Enumeration<
@@ -206,6 +258,10 @@ export interface PageBlocksSearch extends Struct.ComponentSchema {
     displayName: 'search';
   };
   attributes: {
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
     subtitle: Schema.Attribute.String;
     text_button: Schema.Attribute.String;
     text_search: Schema.Attribute.String;
@@ -222,6 +278,10 @@ export interface PageBlocksTextSection extends Struct.ComponentSchema {
   };
   attributes: {
     content: Schema.Attribute.Blocks;
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
     max_width: Schema.Attribute.Enumeration<
       ['default', 'narrow', 'wide', 'full']
     > &
@@ -253,6 +313,23 @@ export interface PageBlocksUspList extends Struct.ComponentSchema {
     sub_title: Schema.Attribute.String;
     title: Schema.Attribute.String;
     usp: Schema.Attribute.Component<'page-blocks.ups', true>;
+  };
+}
+
+export interface PageBlocksVideoEmbed extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_video_embeds';
+  info: {
+    displayName: 'video_embed';
+    icon: 'play';
+  };
+  attributes: {
+    caption: Schema.Attribute.String;
+    heading_level: Schema.Attribute.Enumeration<
+      ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    > &
+      Schema.Attribute.DefaultTo<'default'>;
+    title: Schema.Attribute.String;
+    youtube_url: Schema.Attribute.String & Schema.Attribute.Required;
   };
 }
 
@@ -384,13 +461,15 @@ export interface SharedAddress extends Struct.ComponentSchema {
 }
 
 declare module '@strapi/strapi' {
-  export module Public {
+  export namespace Public {
     export interface ComponentSchemas {
       'general.link': GeneralLink;
       'general.seo': GeneralSeo;
       'page-blocks.article-grid': PageBlocksArticleGrid;
       'page-blocks.cards': PageBlocksCards;
       'page-blocks.carousel-item': PageBlocksCarouselItem;
+      'page-blocks.faq': PageBlocksFaq;
+      'page-blocks.faq-item': PageBlocksFaqItem;
       'page-blocks.hero-banner': PageBlocksHeroBanner;
       'page-blocks.image-carousel': PageBlocksImageCarousel;
       'page-blocks.image-gallery': PageBlocksImageGallery;
@@ -403,6 +482,7 @@ declare module '@strapi/strapi' {
       'page-blocks.text-section': PageBlocksTextSection;
       'page-blocks.ups': PageBlocksUps;
       'page-blocks.usp-list': PageBlocksUspList;
+      'page-blocks.video-embed': PageBlocksVideoEmbed;
       'route.route-end-location': RouteRouteEndLocation;
       'route.route-markings': RouteRouteMarkings;
       'route.route-nodes': RouteRouteNodes;

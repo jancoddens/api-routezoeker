@@ -26,6 +26,11 @@ export interface AdminApiToken extends Struct.CollectionTypeSchema {
       Schema.Attribute.SetMinMaxLength<{
         minLength: 1;
       }>;
+    adminPermissions: Schema.Attribute.Relation<
+      'oneToMany',
+      'admin::permission'
+    >;
+    adminUserOwner: Schema.Attribute.Relation<'manyToOne', 'admin::user'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -39,6 +44,9 @@ export interface AdminApiToken extends Struct.CollectionTypeSchema {
         minLength: 1;
       }>;
     expiresAt: Schema.Attribute.DateTime;
+    kind: Schema.Attribute.Enumeration<['content-api', 'admin']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'content-api'>;
     lastUsedAt: Schema.Attribute.DateTime;
     lifespan: Schema.Attribute.BigInteger;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
@@ -56,7 +64,6 @@ export interface AdminApiToken extends Struct.CollectionTypeSchema {
     >;
     publishedAt: Schema.Attribute.DateTime;
     type: Schema.Attribute.Enumeration<['read-only', 'full-access', 'custom']> &
-      Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'read-only'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -134,6 +141,7 @@ export interface AdminPermission extends Struct.CollectionTypeSchema {
         minLength: 1;
       }>;
     actionParameters: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<{}>;
+    apiToken: Schema.Attribute.Relation<'manyToOne', 'admin::api-token'>;
     conditions: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<[]>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -241,6 +249,7 @@ export interface AdminSession extends Struct.CollectionTypeSchema {
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'admin::session'> &
       Schema.Attribute.Private;
+    metadata: Schema.Attribute.JSON & Schema.Attribute.Private;
     origin: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Private;
@@ -385,6 +394,8 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
     };
   };
   attributes: {
+    apiTokens: Schema.Attribute.Relation<'oneToMany', 'admin::api-token'> &
+      Schema.Attribute.Private;
     blocked: Schema.Attribute.Boolean &
       Schema.Attribute.Private &
       Schema.Attribute.DefaultTo<false>;
@@ -421,6 +432,8 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     registrationToken: Schema.Attribute.String & Schema.Attribute.Private;
     resetPasswordToken: Schema.Attribute.String & Schema.Attribute.Private;
+    resetPasswordTokenExpiresAt: Schema.Attribute.DateTime &
+      Schema.Attribute.Private;
     roles: Schema.Attribute.Relation<'manyToMany', 'admin::role'> &
       Schema.Attribute.Private;
     updatedAt: Schema.Attribute.DateTime;
@@ -638,6 +651,8 @@ export interface ApiBlogPostBlogPost extends Struct.CollectionTypeSchema {
         'page-blocks.image-text',
         'page-blocks.image-gallery',
         'page-blocks.image-carousel',
+        'page-blocks.video-embed',
+        'page-blocks.faq',
         'page-blocks.hero-banner',
         'page-blocks.carousel-item',
         'page-blocks.cards',
@@ -682,6 +697,12 @@ export interface ApiBlogPostBlogPost extends Struct.CollectionTypeSchema {
       'api::blog-post.blog-post'
     >;
     publishedAt: Schema.Attribute.DateTime;
+    region: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     seo: Schema.Attribute.Component<'general.seo', false> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -1062,6 +1083,8 @@ export interface ApiLocationThemePageLocationThemePage
         'page-blocks.image-text',
         'page-blocks.image-gallery',
         'page-blocks.image-carousel',
+        'page-blocks.video-embed',
+        'page-blocks.faq',
         'page-blocks.hero-banner',
         'page-blocks.cards',
         'page-blocks.article-grid',
@@ -1203,6 +1226,7 @@ export interface ApiNodeConnectionNodeConnection
       'api::node-connection.node-connection'
     > &
       Schema.Attribute.Private;
+    mode: Schema.Attribute.Enumeration<['wandelen', 'fietsen']>;
     node_network: Schema.Attribute.Relation<
       'manyToOne',
       'api::node-network.node-network'
@@ -1240,6 +1264,8 @@ export interface ApiNodeNetworkNodeNetwork extends Struct.CollectionTypeSchema {
         'page-blocks.image-text',
         'page-blocks.image-gallery',
         'page-blocks.image-carousel',
+        'page-blocks.video-embed',
+        'page-blocks.faq',
         'page-blocks.hero-banner',
         'page-blocks.carousel-item',
         'page-blocks.cards',
@@ -1370,6 +1396,67 @@ export interface ApiNodeNode extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiNotificationNotification
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'notifications';
+  info: {
+    displayName: 'Melding';
+    pluralName: 'notifications';
+    singularName: 'notification';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    image: Schema.Attribute.Media<'images'> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    link: Schema.Attribute.Component<'general.link', false> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::notification.notification'
+    >;
+    message: Schema.Attribute.Text &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    partner: Schema.Attribute.Relation<'oneToOne', 'api::partner.partner'>;
+    publishedAt: Schema.Attribute.DateTime;
+    route: Schema.Attribute.Relation<'oneToOne', 'api::route.route'>;
+    title: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    valid_from: Schema.Attribute.Date;
+    valid_until: Schema.Attribute.Date;
+  };
+}
+
 export interface ApiPagePage extends Struct.CollectionTypeSchema {
   collectionName: 'pages';
   info: {
@@ -1397,6 +1484,8 @@ export interface ApiPagePage extends Struct.CollectionTypeSchema {
         'page-blocks.image-text',
         'page-blocks.image-gallery',
         'page-blocks.image-carousel',
+        'page-blocks.video-embed',
+        'page-blocks.faq',
         'page-blocks.hero-banner',
         'page-blocks.carousel-item',
         'page-blocks.cards',
@@ -1482,7 +1571,7 @@ export interface ApiPartnerSubscriptionPartnerSubscription
     price: Schema.Attribute.Decimal;
     priority: Schema.Attribute.Integer;
     publishedAt: Schema.Attribute.DateTime;
-    routes: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<30>;
+    routes: Schema.Attribute.Integer;
     run_count: Schema.Attribute.Integer;
     start_date: Schema.Attribute.Date;
     status_subscription: Schema.Attribute.Enumeration<
@@ -1532,6 +1621,8 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
         'page-blocks.image-text',
         'page-blocks.image-gallery',
         'page-blocks.image-carousel',
+        'page-blocks.video-embed',
+        'page-blocks.faq',
         'page-blocks.hero-banner',
         'page-blocks.carousel-item',
         'page-blocks.cards',
@@ -1579,6 +1670,20 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    invite_code: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
+    invite_url: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1588,6 +1693,15 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
+        };
+      }>;
+    managers: Schema.Attribute.Relation<
+      'manyToMany',
+      'plugin::users-permissions.user'
+    > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
         };
       }>;
     name: Schema.Attribute.String &
@@ -2061,6 +2175,8 @@ export interface ApiRouteRoute extends Struct.CollectionTypeSchema {
         'page-blocks.image-text',
         'page-blocks.image-gallery',
         'page-blocks.image-carousel',
+        'page-blocks.video-embed',
+        'page-blocks.faq',
         'page-blocks.hero-banner',
         'page-blocks.carousel-item',
         'page-blocks.cards',
@@ -2308,17 +2424,27 @@ export interface ApiUserProfileUserProfile extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    avatar_url: Schema.Attribute.String;
+    birth_date: Schema.Attribute.Date;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     first_name: Schema.Attribute.String;
+    gender: Schema.Attribute.String;
     last_name: Schema.Attribute.String;
+    legacy_created_at: Schema.Attribute.DateTime;
+    legacy_last_login_at: Schema.Attribute.DateTime;
+    legacy_rechten: Schema.Attribute.Integer;
+    legacy_status: Schema.Attribute.Integer;
+    legacy_user_controlnumber: Schema.Attribute.String &
+      Schema.Attribute.Unique;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'api::user-profile.user-profile'
     > &
       Schema.Attribute.Private;
+    postcode: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -2327,6 +2453,7 @@ export interface ApiUserProfileUserProfile extends Struct.CollectionTypeSchema {
       'oneToOne',
       'plugin::users-permissions.user'
     >;
+    walking_club: Schema.Attribute.String;
   };
 }
 
@@ -2831,7 +2958,7 @@ export interface PluginUsersPermissionsUser
 }
 
 declare module '@strapi/strapi' {
-  export module Public {
+  export namespace Public {
     export interface ContentTypeSchemas {
       'admin::api-token': AdminApiToken;
       'admin::api-token-permission': AdminApiTokenPermission;
@@ -2856,6 +2983,7 @@ declare module '@strapi/strapi' {
       'api::node-connection.node-connection': ApiNodeConnectionNodeConnection;
       'api::node-network.node-network': ApiNodeNetworkNodeNetwork;
       'api::node.node': ApiNodeNode;
+      'api::notification.notification': ApiNotificationNotification;
       'api::page.page': ApiPagePage;
       'api::partner-subscription.partner-subscription': ApiPartnerSubscriptionPartnerSubscription;
       'api::partner.partner': ApiPartnerPartner;
