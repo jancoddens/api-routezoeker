@@ -140,7 +140,9 @@ const normalizeText = (value) =>
 /** "Wandelnetwerk Bulskampveld", "WNW Bronbossen", "FNW Waasland" -> "bulskampveld", ... */
 const networkKey = (value) =>
   normalizeText(value)
-    .replace(/^(wandelnetwerk|fietsnetwerk|wnw|fnw)\b[\s:-]*/, '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/^(uitbreiding\s+)?(wandelnetwerk|fietsnetwerk|fietsroutenetwerk|wnw|fnw)\b[\s:-]*/, '')
+    .replace(/^(de|het|t)\s+/, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
@@ -306,11 +308,16 @@ const run = async () => {
     const existingNodes = await findAll(strapi, NODE_UID, {
       select: ['id', 'external_id', 'number', 'name', 'latitude', 'longitude'],
     });
+    // Bij dubbels (zelfde external_id) houden we de oudste rij (laagste id).
     const nodeByExternalId = new Map();
+    const duplicateNodes = [];
     for (const row of existingNodes) {
-      if (row.external_id) nodeByExternalId.set(String(row.external_id), row);
+      if (!row.external_id) continue;
+      const key = String(row.external_id);
+      if (nodeByExternalId.has(key)) duplicateNodes.push(row);
+      else nodeByExternalId.set(key, row);
     }
-    log(`Strapi: ${existingNodes.length} knooppunten`);
+    log(`Strapi: ${existingNodes.length} knooppunten, waarvan ${duplicateNodes.length} dubbel`);
 
     const nodeCreates = [];
     const nodeUpdates = [];
@@ -361,10 +368,14 @@ const run = async () => {
       },
     });
     const connectionByExternalId = new Map();
+    const duplicateConnections = [];
     for (const row of existingConnections) {
-      if (row.external_id) connectionByExternalId.set(String(row.external_id), row);
+      if (!row.external_id) continue;
+      const key = String(row.external_id);
+      if (connectionByExternalId.has(key)) duplicateConnections.push(row);
+      else connectionByExternalId.set(key, row);
     }
-    log(`Strapi: ${existingConnections.length} verbindingen`);
+    log(`Strapi: ${existingConnections.length} verbindingen, waarvan ${duplicateConnections.length} dubbel`);
 
     const sourceNodeNames = new Map(Array.from(sourceNodes.values(), (node) => [node.externalId, node.name]));
     const connectionCreates = [];
@@ -463,6 +474,15 @@ const run = async () => {
         options.prune ? '' : ' (blijven staan; gebruik --prune om te verwijderen)'
       }`
     );
+    // Dubbels die zelf nog in de bron staan (de oudste rij blijft bestaan).
+    const staleIds = new Set([...staleConnections, ...staleNodes].map((row) => row.id));
+    const extraConnections = duplicateConnections.filter((row) => !staleIds.has(row.id));
+    const extraNodes = duplicateNodes.filter((row) => !staleIds.has(row.id));
+    log(
+      `Dubbels om op te ruimen: ${extraConnections.length} verbindingen, ${extraNodes.length} knooppunten${
+        options.prune ? '' : ' (gebruik --prune)'
+      }`
+    );
 
     if (options.prune) {
       const safeConnections =
@@ -474,11 +494,13 @@ const run = async () => {
       } else if (!safeConnections || !safeNodes) {
         log('Verwijderen overgeslagen: de bron is verdacht klein tegenover Strapi (half gelukte download?).');
       } else if (options.apply) {
-        await runPool(staleConnections, async (row) => {
+        await runPool([...staleConnections, ...extraConnections], async (row) => {
           await strapi.entityService.delete(CONNECTION_UID, row.id);
           stats.connectionsDeleted += 1;
         });
-        await runPool(staleNodes, async (row) => {
+        // Verbindingen wijzen nu naar de bewaarde rij, dus dubbele knooppunten
+        // worden niet meer gebruikt.
+        await runPool([...staleNodes, ...extraNodes], async (row) => {
           await strapi.entityService.delete(NODE_UID, row.id);
           stats.nodesDeleted += 1;
         });
