@@ -32,13 +32,21 @@ type NetworkRow = {
   theme?: { slug?: string | null } | null;
 };
 
+type RelationValue = { id: number } | Array<{ id: number }> | null | undefined;
+
 type ConnectionRow = {
   id: number;
   distance_km?: number | string | null;
   geometry?: unknown;
-  from_node?: { id: number } | null;
-  to_node?: { id: number } | null;
-  node_network?: { id: number } | null;
+  // from_node / to_node zijn manyToMany in het schema: Strapi geeft een lijst terug.
+  from_node?: RelationValue;
+  to_node?: RelationValue;
+  node_network?: RelationValue;
+};
+
+const relationId = (value: RelationValue): number | null => {
+  const item = Array.isArray(value) ? value[0] : value;
+  return item && typeof item.id === 'number' ? item.id : null;
 };
 
 const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
@@ -83,6 +91,7 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
   const connections: RawPlannerConnection[] = [];
   let rawConnectionCount = 0;
   let skippedUnpublished = 0;
+  let missingEndpoints = 0;
   for (let offset = 0; ; offset += CONNECTION_BATCH) {
     const batch = (await strapi.db.query('api::node-connection.node-connection').findMany({
       select: ['id', 'distance_km', 'geometry'],
@@ -101,18 +110,24 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
       // Verbindingen uit de officiële dataset hangen vaak niet aan een netwerk:
       // die tellen als wandelen. Hangt een verbinding wel aan een netwerk, dan
       // moet dat netwerk gepubliceerd zijn.
-      const mode = row.node_network
-        ? modeByNetworkId.get(row.node_network.id)
-        : DEFAULT_MODE;
+      const networkId = relationId(row.node_network);
+      const mode = networkId !== null ? modeByNetworkId.get(networkId) : DEFAULT_MODE;
       if (!mode) {
         skippedUnpublished++;
         continue;
       }
 
+      const from = relationId(row.from_node);
+      const to = relationId(row.to_node);
+      if (from === null || to === null) {
+        missingEndpoints++;
+        continue;
+      }
+
       connections.push({
         id: row.id,
-        from: row.from_node?.id ?? null,
-        to: row.to_node?.id ?? null,
+        from,
+        to,
         distanceKm: row.distance_km ?? null,
         geometry: row.geometry,
         mode,
@@ -123,11 +138,14 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
   }
 
   const graph = buildPlannerGraph(nodes, connections);
+  const nodesWithCoordinates = nodes.filter(
+    (node) => Number(node.latitude) !== 0 && Number.isFinite(Number(node.latitude)) && node.latitude !== null
+  ).length;
 
   strapi.log.info(
     `[node-planner] graaf geladen: ${graph.nodes.size} knooppunten, ${graph.edges.length} verbindingen in ${
       Date.now() - started
-    } ms (bron: ${nodes.length} knooppunten, ${rawConnectionCount} verbindingen, ${skippedUnpublished} overgeslagen want netwerk niet gepubliceerd)`
+    } ms (bron: ${nodes.length} knooppunten, ${rawConnectionCount} verbindingen, ${nodesWithCoordinates} knooppunten met coördinaten, ${skippedUnpublished} verbindingen overgeslagen want netwerk niet gepubliceerd, ${missingEndpoints} zonder begin- of eindknooppunt)`
   );
 
   return graph;
