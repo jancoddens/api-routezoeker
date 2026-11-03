@@ -27,7 +27,11 @@
 'use strict';
 
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
-const { buildSegmentIndex, classifyLine } = require('./lib/surface-matching');
+const { buildSegmentIndex, classifyLine, classifyOsmTags } = require('./lib/surface-matching');
+const { overpass } = require('./lib/overpass');
+
+// Belgische provincies (en Brussel) voor het aanvullende OSM-wegdek.
+const OSM_PROVINCES = ['BE-VAN', 'BE-VBR', 'BE-VLI', 'BE-VOV', 'BE-VWV', 'BE-BRU'];
 
 const WFS_URL = 'https://geodata.toerismevlaanderen.be/geoserver/wfs';
 const PAGE_SIZE = 5000;
@@ -53,12 +57,13 @@ const NETWORK_UID = 'api::node-network.node-network';
 
 const parseArgs = () => {
   const args = process.argv.slice(2);
-  const options = { apply: false, prune: false, modes: ['wandelen', 'fietsen'] };
+  const options = { apply: false, prune: false, osm: true, modes: ['wandelen', 'fietsen'] };
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === '--apply') options.apply = true;
     else if (arg === '--prune') options.prune = true;
+    else if (arg === '--no-osm') options.osm = false;
     else if (arg === '--mode') {
       const value = args[i + 1];
       i += 1;
@@ -291,6 +296,40 @@ const run = async () => {
       log(`  wegdek ${mode} niet beschikbaar: ${error.message}`);
     }
   }
+
+  // Aanvulling uit OpenStreetMap: enkel de wegen die deel uitmaken van de
+  // wandel- en fietsknooppuntnetwerken, met hun wegdek-tags.
+  let osmIndex = null;
+  if (options.osm) {
+    const lines = [];
+    const seen = new Set();
+    for (const province of OSM_PROVINCES) {
+      try {
+        const json = await overpass(
+          `[out:json][timeout:600];
+area["ISO3166-2"="${province}"]->.a;
+relation(area.a)["type"="route"]["network"~"^(rwn|rcn)$"]["network:type"="node_network"]->.rels;
+way(r.rels);
+out tags geom;`,
+          log
+        );
+        let count = 0;
+        for (const way of json.elements || []) {
+          if (way.type !== 'way' || seen.has(way.id) || !Array.isArray(way.geometry)) continue;
+          seen.add(way.id);
+          const code = classifyOsmTags(way.tags || {});
+          if (code === null) continue;
+          lines.push({ coords: way.geometry.map((point) => [point.lat, point.lon]), code });
+          count += 1;
+        }
+        log(`  OSM-wegdek ${province}: ${count} wegen`);
+      } catch (error) {
+        log(`  OSM-wegdek ${province} niet beschikbaar: ${String(error.message).split('\n')[0]}`);
+      }
+    }
+    if (lines.length) osmIndex = buildSegmentIndex(lines);
+  }
+
   let surfaceKnown = 0;
   let surfaceTotal = 0;
   for (const connection of sourceConnections) {
@@ -299,7 +338,8 @@ const run = async () => {
     const coords = [];
     for (const part of parts) for (const point of part || []) coords.push([point[1], point[0]]);
     const other = connection.mode === 'wandelen' ? 'fietsen' : 'wandelen';
-    connection.surface = classifyLine(coords, [surfaceIndexes[connection.mode], surfaceIndexes[other]]);
+    // Voorrang: officieel wegdek (zelfde modus, andere modus), dan OSM.
+    connection.surface = classifyLine(coords, [surfaceIndexes[connection.mode], surfaceIndexes[other], osmIndex]);
     for (const [from, to, code] of connection.surface || []) {
       surfaceTotal += to - from;
       if (code !== -1) surfaceKnown += to - from;
