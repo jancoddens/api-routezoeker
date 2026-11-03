@@ -348,13 +348,23 @@ const run = async () => {
 
     if (options.apply) {
       await runPool(nodeCreates, async (node) => {
-        const created = await strapi.entityService.create(NODE_UID, { data: nodeData(node) });
-        nodeByExternalId.set(node.externalId, { id: created.id, external_id: node.externalId });
-        stats.nodesCreated += 1;
+        try {
+          const created = await strapi.entityService.create(NODE_UID, { data: nodeData(node) });
+          nodeByExternalId.set(node.externalId, { id: created.id, external_id: node.externalId });
+          stats.nodesCreated += 1;
+        } catch (error) {
+          stats.nodesFailed = (stats.nodesFailed || 0) + 1;
+          if (stats.nodesFailed <= 10) log(`  knooppunt ${node.externalId} overgeslagen: ${error && error.message}`);
+        }
       });
       await runPool(nodeUpdates, async ({ id, node }) => {
-        await strapi.entityService.update(NODE_UID, id, { data: nodeData(node) });
-        stats.nodesUpdated += 1;
+        try {
+          await strapi.entityService.update(NODE_UID, id, { data: nodeData(node) });
+          stats.nodesUpdated += 1;
+        } catch (error) {
+          stats.nodesFailed = (stats.nodesFailed || 0) + 1;
+          if (stats.nodesFailed <= 10) log(`  knooppunt ${node.externalId} overgeslagen: ${error && error.message}`);
+        }
       });
     }
 
@@ -385,8 +395,9 @@ const run = async () => {
       const fromRow = nodeByExternalId.get(connection.fromRef);
       const toRow = nodeByExternalId.get(connection.toRef);
       // In een droge test bestaan nieuwe knooppunten nog niet: dan tellen ze als "zou aangemaakt".
-      const fromId = fromRow ? fromRow.id : sourceNodes.has(connection.fromRef) ? -1 : null;
-      const toId = toRow ? toRow.id : sourceNodes.has(connection.toRef) ? -1 : null;
+      const placeholder = (ref) => (!options.apply && sourceNodes.has(ref) ? -1 : null);
+      const fromId = fromRow ? fromRow.id : placeholder(connection.fromRef);
+      const toId = toRow ? toRow.id : placeholder(connection.toRef);
       if (fromId === null || toId === null) {
         stats.connectionsMissingNode += 1;
         continue;
@@ -450,15 +461,46 @@ const run = async () => {
       topUnmatched.forEach(([name, count]) => log(`    ${count}x  ${name}`));
     }
 
+    // Eén fout record mag de sync niet stilleggen: eerst opnieuw zonder
+    // netwerkkoppeling, anders overslaan en de reden loggen.
+    const failures = [];
+    const describeError = (error) => {
+      const details = error && error.details && error.details.errors;
+      return `${error && error.message}${details ? ` ${JSON.stringify(details).slice(0, 400)}` : ''}`;
+    };
+    const writeConnection = async (target, write) => {
+      try {
+        await write(connectionData(target));
+        return true;
+      } catch (error) {
+        if (target.networkId) {
+          try {
+            await write(connectionData({ ...target, networkId: null }));
+            stats.connectionsNetworkDropped = (stats.connectionsNetworkDropped || 0) + 1;
+            if (stats.connectionsNetworkDropped <= 5) {
+              log(`  ${target.externalId}: netwerk ${target.networkId} geweigerd (${describeError(error)}), opgeslagen zonder netwerk`);
+            }
+            return true;
+          } catch (retryError) {
+            error = retryError;
+          }
+        }
+        failures.push(target.externalId);
+        if (failures.length <= 10) log(`  ${target.externalId} overgeslagen: ${describeError(error)}`);
+        return false;
+      }
+    };
+
     if (options.apply) {
       await runPool(connectionCreates, async (target) => {
-        await strapi.entityService.create(CONNECTION_UID, { data: connectionData(target) });
-        stats.connectionsCreated += 1;
+        const ok = await writeConnection(target, (data) => strapi.entityService.create(CONNECTION_UID, { data }));
+        if (ok) stats.connectionsCreated += 1;
       });
       await runPool(connectionUpdates, async ({ id, target }) => {
-        await strapi.entityService.update(CONNECTION_UID, id, { data: connectionData(target) });
-        stats.connectionsUpdated += 1;
+        const ok = await writeConnection(target, (data) => strapi.entityService.update(CONNECTION_UID, id, { data }));
+        if (ok) stats.connectionsUpdated += 1;
       });
+      stats.connectionsFailed = failures.length;
     }
 
     // 5. Verwijderen wat niet meer in de bron staat.
