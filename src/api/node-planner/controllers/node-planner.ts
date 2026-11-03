@@ -66,6 +66,29 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
     };
   },
 
+  async routes(ctx) {
+    const mode = parsePlannerMode(ctx.query.mode);
+    const routes = await strapi.service('api::node-planner.node-planner').getRoutes();
+
+    ctx.set('Cache-Control', 'public, max-age=600');
+    ctx.body = {
+      mode,
+      // [id, titel, pad, km, lat, lng, "knooppunten", [planner-ids] | null]
+      routes: (routes as Array<Record<string, any>>)
+        .filter((route) => route.mode === mode)
+        .map((route) => [
+          route.id,
+          route.title,
+          route.href,
+          route.km,
+          route.lat,
+          route.lng,
+          route.numbers.join('-'),
+          route.waypoints,
+        ]),
+    };
+  },
+
   async route(ctx) {
     const from = Number(ctx.query.from);
     const to = Number(ctx.query.to);

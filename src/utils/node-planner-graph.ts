@@ -507,3 +507,57 @@ export const shortestPath = (
 /** Lijn van een stap in looprichting. */
 export const stepCoords = (step: { edge: PlannerEdge; reversed: boolean }) =>
   step.reversed ? reversePairs(step.edge.coords) : step.edge.coords;
+
+/** Ruimtelijke index op knooppunten, om routepunten aan netwerkknooppunten te koppelen. */
+export type NodeIndex = Map<string, PlannerNode[]>;
+
+const NODE_CELL_DEG = 0.01;
+
+export const buildNodeIndex = (graph: PlannerGraph): NodeIndex => {
+  const index: NodeIndex = new Map();
+  for (const node of graph.nodes.values()) {
+    const key = cellKey(Math.floor(node.lng / NODE_CELL_DEG), Math.floor(node.lat / NODE_CELL_DEG));
+    const list = index.get(key);
+    if (list) list.push(node);
+    else index.set(key, [node]);
+  }
+  return index;
+};
+
+/**
+ * Dichtstbijzijnde knooppunt (in de gevraagde modus) binnen maxKm. Een
+ * knooppunt met hetzelfde nummer krijgt voorrang.
+ */
+export const nearestNode = (
+  index: NodeIndex,
+  lat: number,
+  lng: number,
+  mode: PlannerMode,
+  number?: string | null,
+  maxKm = 0.2
+): PlannerNode | null => {
+  const cx = Math.floor(lng / NODE_CELL_DEG);
+  const cy = Math.floor(lat / NODE_CELL_DEG);
+  const bit = modeBit(mode);
+  const wanted = normalizeNodeNumber(number);
+  let best: PlannerNode | null = null;
+  let bestScore = Infinity;
+
+  for (let x = cx - 1; x <= cx + 1; x++) {
+    for (let y = cy - 1; y <= cy + 1; y++) {
+      for (const node of index.get(cellKey(x, y)) ?? []) {
+        if (!(node.modes & bit)) continue;
+        const km = haversineKm(lat, lng, node.lat, node.lng);
+        if (km > maxKm) continue;
+        // Zelfde nummer: telt als veel dichterbij.
+        const score = wanted && node.n === wanted ? km / 10 : km;
+        if (score < bestScore) {
+          bestScore = score;
+          best = node;
+        }
+      }
+    }
+  }
+
+  return best;
+};

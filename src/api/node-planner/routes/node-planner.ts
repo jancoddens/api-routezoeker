@@ -17,6 +17,14 @@ export default {
     },
     {
       method: 'GET',
+      path: '/node-planner/routes',
+      handler: 'node-planner.routes',
+      config: {
+        auth: false,
+      },
+    },
+    {
+      method: 'GET',
       path: '/node-planner/route',
       handler: 'node-planner.route',
       config: {

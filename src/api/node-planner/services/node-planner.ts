@@ -9,8 +9,10 @@
 import type { Core } from '@strapi/strapi';
 
 import {
+  buildNodeIndex,
   buildPlannerGraph,
   modeFromThemeSlug,
+  nearestNode,
   type PlannerGraph,
   type PlannerMode,
   type RawPlannerConnection,
@@ -24,6 +26,115 @@ const DEFAULT_MODE: PlannerMode = 'wandelen';
 
 let cachedGraph: PlannerGraph | null = null;
 let loadingGraph: Promise<PlannerGraph> | null = null;
+
+export type PlannerRoute = {
+  id: number;
+  title: string;
+  /** pad op de website, bv. /wandelroutes/<slug> */
+  href: string;
+  mode: PlannerMode;
+  km: number | null;
+  lat: number;
+  lng: number;
+  /** knooppuntnummers in volgorde, zoals op de routepagina */
+  numbers: string[];
+  /** knooppunt-ids in de planner, of null als de route niet te koppelen is */
+  waypoints: number[] | null;
+};
+
+let cachedRoutes: { builtAt: number; graphBuiltAt: number; routes: PlannerRoute[] } | null = null;
+let loadingRoutes: Promise<PlannerRoute[]> | null = null;
+
+type RouteRow = {
+  id: number;
+  title?: string | null;
+  slug?: string | null;
+  theme?: { slug?: string | null } | null;
+  route_nodes?: Array<{
+    node_number?: string | null;
+    order?: number | null;
+    cumulative_distance_km?: number | string | null;
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+  }> | null;
+  route_start_locations?: Array<{ distance_km?: number | string | null }> | null;
+};
+
+const ROUTE_BATCH = 200;
+
+const loadRoutes = async (strapi: Core.Strapi, graph: PlannerGraph): Promise<PlannerRoute[]> => {
+  const started = Date.now();
+  const index = buildNodeIndex(graph);
+  const routes: PlannerRoute[] = [];
+
+  for (let offset = 0; ; offset += ROUTE_BATCH) {
+    const batch = (await strapi.db.query('api::route.route').findMany({
+      where: { publishedAt: { $notNull: true } },
+      select: ['id', 'title', 'slug'],
+      populate: {
+        theme: { select: ['slug'] },
+        route_nodes: true,
+        route_start_locations: { select: ['distance_km'] },
+      },
+      orderBy: { id: 'asc' },
+      offset,
+      limit: ROUTE_BATCH,
+    })) as RouteRow[];
+
+    for (const row of batch) {
+      const points = (row.route_nodes ?? [])
+        .map((node) => ({
+          number: node.node_number ? String(node.node_number).trim() : '',
+          order: Number(node.order ?? 0),
+          cumulative: Number(node.cumulative_distance_km),
+          lat: Number(node.latitude),
+          lng: Number(node.longitude),
+        }))
+        .filter((node) => Number.isFinite(node.lat) && Number.isFinite(node.lng) && (node.lat !== 0 || node.lng !== 0))
+        .sort((a, b) => a.order - b.order);
+
+      if (!row.slug || points.length < 2) continue;
+
+      const themeSlug = row.theme?.slug || 'wandelroutes';
+      const mode = modeFromThemeSlug(themeSlug);
+
+      // Routepunten aan netwerkknooppunten koppelen; dubbels na elkaar weg.
+      const waypoints: number[] = [];
+      let matched = 0;
+      for (const point of points) {
+        const node = nearestNode(index, point.lat, point.lng, mode, point.number);
+        if (!node) continue;
+        matched++;
+        if (waypoints[waypoints.length - 1] !== node.id) waypoints.push(node.id);
+      }
+
+      const startKm = Number(row.route_start_locations?.[0]?.distance_km);
+      const lastCumulative = points[points.length - 1].cumulative;
+
+      routes.push({
+        id: row.id,
+        title: row.title || 'Zonder titel',
+        href: `/${themeSlug}/${row.slug}`,
+        mode,
+        km: Number.isFinite(startKm) && startKm > 0 ? startKm : Number.isFinite(lastCumulative) && lastCumulative > 0 ? lastCumulative : null,
+        lat: points[0].lat,
+        lng: points[0].lng,
+        numbers: points.map((point) => point.number).filter(Boolean),
+        waypoints: matched >= points.length * 0.8 && waypoints.length >= 2 ? waypoints : null,
+      });
+    }
+
+    if (batch.length < ROUTE_BATCH) break;
+  }
+
+  strapi.log.info(
+    `[node-planner] routes geladen: ${routes.length} routes met knooppunten, ${
+      routes.filter((route) => route.waypoints).length
+    } bruikbaar in de planner, in ${Date.now() - started} ms`
+  );
+
+  return routes;
+};
 
 type NetworkRow = {
   id: number;
@@ -188,7 +299,33 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
     return cachedGraph ?? loadingGraph;
   },
 
+  async getRoutes(): Promise<PlannerRoute[]> {
+    const graph = await this.getGraph();
+
+    if (
+      cachedRoutes &&
+      cachedRoutes.graphBuiltAt === graph.builtAt &&
+      Date.now() - cachedRoutes.builtAt < CACHE_TTL_MS
+    ) {
+      return cachedRoutes.routes;
+    }
+
+    if (!loadingRoutes) {
+      loadingRoutes = loadRoutes(strapi, graph)
+        .then((routes) => {
+          cachedRoutes = { builtAt: Date.now(), graphBuiltAt: graph.builtAt, routes };
+          return routes;
+        })
+        .finally(() => {
+          loadingRoutes = null;
+        });
+    }
+
+    return cachedRoutes?.routes ?? loadingRoutes;
+  },
+
   invalidate() {
     cachedGraph = null;
+    cachedRoutes = null;
   },
 });
