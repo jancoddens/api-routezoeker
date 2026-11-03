@@ -14,6 +14,7 @@
 import type { Core } from '@strapi/strapi';
 
 import {
+  reverseSurfaceRuns,
   edgesInBbox,
   parsePlannerMode,
   shortestPath,
@@ -117,6 +118,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
         step.edge.km,
         stepCoords(step),
         step.edge.v ? 1 : 0,
+        // wegdek in looprichting: [[vanFractie, totFractie, 1|0|-1], ...] of null
+        step.reversed ? reverseSurfaceRuns(step.edge.s) : step.edge.s,
       ]),
     };
   },

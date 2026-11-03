@@ -47,6 +47,9 @@
     "is_virtual": {
       "type": "boolean",
       "default": false
+    },
+    "surface": {
+      "type": "json"
     }
   }
 }

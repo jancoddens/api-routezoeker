@@ -42,7 +42,7 @@
 const fs = require('node:fs/promises');
 
 const DEFAULT_BASE_URL = 'https://api.routezoeker.com';
-const POI_TYPES = ['Gebouwen', 'Locaties', 'Wandelnetwerken'];
+const { inferPoiType } = require('./legacy-poi-type');
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -288,13 +288,13 @@ const strapiRequest = async (options, requestPath, init = {}) => {
 
 const findPoiByTitleAndType = async (options, title, type) => {
   const query = new URLSearchParams({
-    'filters[title][$eq]': title,
-    'filters[type][$eq]': type,
-    'pagination[pageSize]': '1',
+    'filters[title][$eqi]': title,
+    'pagination[pageSize]': '10',
     status: 'draft',
   });
   const body = await strapiRequest(options, `/api/pois?${query.toString()}`);
-  return body?.data?.[0] ?? null;
+  const hits = body?.data ?? [];
+  return hits.find((hit) => hit.type === type) ?? hits[0] ?? null;
 };
 
 const findRouteBySlug = async (options, slug) => {
@@ -372,10 +372,10 @@ const run = async () => {
     if (pidToStrapiId.has(pid)) return pidToStrapiId.get(pid);
 
     const point = pointsById.get(pid);
-    const type = toStringValue(point?.Type);
+    const type = point ? inferPoiType(point) : null;
     const title = toStringValue(point?.Title);
 
-    if (!point || !POI_TYPES.includes(type) || !title) {
+    if (!point || !type || !title) {
       pidToStrapiId.set(pid, null);
       return null;
     }
@@ -448,7 +448,7 @@ const run = async () => {
         routesNotFoundCount: routesNotFound.length,
         routesNotFoundSample: routesNotFound.slice(0, 20),
         poisNotFoundCount: poisNotFound.length,
-        poisNotFoundSample: poisNotFound.slice(0, 20),
+        poisNotFoundSample: poisNotFound.slice(0, 60),
       },
       null,
       2

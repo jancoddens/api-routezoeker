@@ -27,6 +27,7 @@
 'use strict';
 
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
+const { buildSegmentIndex, classifyLine } = require('./lib/surface-matching');
 
 const WFS_URL = 'https://geodata.toerismevlaanderen.be/geoserver/wfs';
 const PAGE_SIZE = 5000;
@@ -39,8 +40,8 @@ const MIN_SOURCE_NODES = 10000;
 const MIN_SOURCE_CONNECTIONS = 15000;
 
 const LAYERS = {
-  wandelen: { nodes: 'routes:knoop_wandel', connections: 'routes:traject_wandel' },
-  fietsen: { nodes: 'routes:knoop_fiets', connections: 'routes:traject_fiets' },
+  wandelen: { nodes: 'routes:knoop_wandel', connections: 'routes:traject_wandel', surface: 'routes:wegdek_wandel' },
+  fietsen: { nodes: 'routes:knoop_fiets', connections: 'routes:traject_fiets', surface: 'routes:wegdek_fiets' },
 };
 
 const NODE_UID = 'api::node.node';
@@ -266,6 +267,48 @@ const run = async () => {
   }
   log(`Bron: ${sourceNodes.size} knooppunten, ${sourceConnections.length} verbindingen`);
 
+  // Wegdek: officiële wegdeklaag (verhard/onverhard) ruimtelijk koppelen aan
+  // elk traject. Eerst de laag van dezelfde modus, dan die van de andere.
+  const surfaceIndexes = {};
+  for (const mode of ['wandelen', 'fietsen']) {
+    try {
+      const features = await fetchLayer(LAYERS[mode].surface);
+      const lines = [];
+      for (const feature of features) {
+        const ground = String((feature.properties && feature.properties.ground) || '').toLowerCase();
+        const code = ground === 'verhard' ? 1 : ground === 'onverhard' ? 0 : null;
+        if (code === null || !feature.geometry) continue;
+        const parts =
+          feature.geometry.type === 'MultiLineString' ? feature.geometry.coordinates : [feature.geometry.coordinates];
+        for (const part of parts) {
+          if (Array.isArray(part) && part.length >= 2) {
+            lines.push({ coords: part.map((point) => [point[1], point[0]]), code });
+          }
+        }
+      }
+      surfaceIndexes[mode] = buildSegmentIndex(lines);
+    } catch (error) {
+      log(`  wegdek ${mode} niet beschikbaar: ${error.message}`);
+    }
+  }
+  let surfaceKnown = 0;
+  let surfaceTotal = 0;
+  for (const connection of sourceConnections) {
+    const parts =
+      connection.geometry.type === 'MultiLineString' ? connection.geometry.coordinates : [connection.geometry.coordinates];
+    const coords = [];
+    for (const part of parts) for (const point of part || []) coords.push([point[1], point[0]]);
+    const other = connection.mode === 'wandelen' ? 'fietsen' : 'wandelen';
+    connection.surface = classifyLine(coords, [surfaceIndexes[connection.mode], surfaceIndexes[other]]);
+    for (const [from, to, code] of connection.surface || []) {
+      surfaceTotal += to - from;
+      if (code !== -1) surfaceKnown += to - from;
+    }
+  }
+  log(
+    `Wegdek: ${surfaceTotal ? Math.round((surfaceKnown / surfaceTotal) * 100) : 0}% van de trajectlengte gekoppeld aan verhard/onverhard`
+  );
+
   const appContext = await compileStrapi();
   const strapi = createStrapi(appContext);
   await strapi.load();
@@ -377,7 +420,7 @@ const run = async () => {
 
     // 4. Verbindingen.
     const existingConnections = await findAll(strapi, CONNECTION_UID, {
-      select: ['id', 'external_id', 'distance_km', 'geometry', 'mode', 'is_virtual'],
+      select: ['id', 'external_id', 'distance_km', 'geometry', 'mode', 'is_virtual', 'surface'],
       populate: {
         from_node: { select: ['id'] },
         to_node: { select: ['id'] },
@@ -435,6 +478,7 @@ const run = async () => {
         relationId(row.node_network) !== networkId ||
         row.mode !== connection.mode ||
         Boolean(row.is_virtual) !== connection.isVirtual ||
+        JSON.stringify(row.surface ?? null) !== JSON.stringify(connection.surface ?? null) ||
         Math.abs(Number(row.distance_km || 0) - Number(connection.distanceKm || 0)) > 0.001 ||
         JSON.stringify(roundCoordinates(row.geometry && row.geometry.coordinates)) !==
           JSON.stringify(connection.geometry.coordinates);
@@ -452,6 +496,7 @@ const run = async () => {
       geometry: target.geometry,
       mode: target.mode,
       is_virtual: target.isVirtual,
+      surface: target.surface ?? null,
     });
 
     log(

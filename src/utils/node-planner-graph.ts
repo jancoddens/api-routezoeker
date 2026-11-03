@@ -28,7 +28,34 @@ export type RawPlannerConnection = {
   geometry: unknown;
   mode: PlannerMode;
   isVirtual?: boolean | null;
+  surface?: unknown;
 };
+
+/** Wegdek langs een verbinding: [vanFractie, totFractie, 1 verhard | 0 onverhard | -1 onbekend]. */
+export type SurfaceRuns = Array<[number, number, number]>;
+
+const parseSurfaceRuns = (value: unknown): SurfaceRuns | null => {
+  if (!Array.isArray(value)) return null;
+  const runs: SurfaceRuns = [];
+  for (const item of value) {
+    if (!Array.isArray(item) || item.length < 3) continue;
+    const from = Number(item[0]);
+    const to = Number(item[1]);
+    const code = Number(item[2]);
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
+    runs.push([from, to, code === 1 ? 1 : code === 0 ? 0 : -1]);
+  }
+  return runs.length ? runs : null;
+};
+
+/** Zelfde wegdek, maar in omgekeerde richting. */
+export const reverseSurfaceRuns = (runs: SurfaceRuns | null): SurfaceRuns | null =>
+  runs
+    ? runs
+        .slice()
+        .reverse()
+        .map(([from, to, code]) => [Math.round((1 - to) * 1e4) / 1e4, Math.round((1 - from) * 1e4) / 1e4, code])
+    : null;
 
 export type PlannerNode = {
   id: number;
@@ -49,6 +76,8 @@ export type PlannerEdge = {
   mode: PlannerMode;
   /** virtueel traject: geen bordjes op het terrein */
   v: boolean;
+  /** wegdek, georiënteerd van a naar b */
+  s: SurfaceRuns | null;
   /** platte lijst [lat, lng, lat, lng, ...], georiënteerd van a naar b */
   coords: number[];
   minLat: number;
@@ -265,12 +294,16 @@ export const buildPlannerGraph = (
     const key = `${raw.mode}:${Math.min(a.id, b.id)}:${Math.max(a.id, b.id)}`;
 
     let coords = geometryToLatLngs(raw.geometry);
+    let surface = parseSurfaceRuns(raw.surface);
 
     if (coords.length >= 4) {
-      // Lijn oriënteren van a naar b.
+      // Lijn (en wegdek) oriënteren van a naar b.
       const startToA = haversineKm(coords[0], coords[1], a.lat, a.lng);
       const startToB = haversineKm(coords[0], coords[1], b.lat, b.lng);
-      if (startToB < startToA) coords = reversePairs(coords);
+      if (startToB < startToA) {
+        coords = reversePairs(coords);
+        surface = reverseSurfaceRuns(surface);
+      }
     } else {
       coords = [a.lat, a.lng, b.lat, b.lng];
     }
@@ -306,6 +339,7 @@ export const buildPlannerGraph = (
       km: Math.round(km * 1000) / 1000,
       mode: raw.mode,
       v: Boolean(raw.isVirtual),
+      s: surface,
       coords: simplified,
       minLat,
       minLng,

@@ -30,6 +30,7 @@
 'use strict';
 
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
+const { buildSegmentIndex, classifyLine, classifyOsmTags } = require('./lib/surface-matching');
 
 // Bij een volle server schakelen we door naar de volgende.
 const OVERPASS_URLS = process.env.OVERPASS_URL
@@ -222,13 +223,16 @@ area["ISO3166-2"="${province}"]->.a;
   node(area.a)["${refTag}"];
 )->.nodes;
 .nodes out body;
-relation(area.a)["type"="route"]["network"="${network}"]["network:type"="node_network"];
-out geom;`;
+relation(area.a)["type"="route"]["network"="${network}"]["network:type"="node_network"]->.rels;
+.rels out geom;
+way(r.rels);
+out tags;`;
   const json = await overpass(query);
   const elements = Array.isArray(json.elements) ? json.elements : [];
   return {
     refNodes: elements.filter((element) => element.type === 'node'),
     routes: elements.filter((element) => element.type === 'relation'),
+    wayTags: elements.filter((element) => element.type === 'way'),
   };
 };
 
@@ -244,10 +248,12 @@ const run = async () => {
   const sourceNodes = new Map(); // externalId -> node
   const routeElements = new Map(); // externalId -> { element, mode }
   const perProvince = [];
+  const wayCodes = new Map(); // OSM way-id -> 1 verhard / 0 onverhard / null
 
   for (const province of options.provinces) {
     for (const mode of options.modes) {
-      const { refNodes, routes } = await fetchProvince(province, mode);
+      const { refNodes, routes, wayTags } = await fetchProvince(province, mode);
+      for (const way of wayTags) wayCodes.set(way.id, classifyOsmTags(way.tags || {}));
       for (const element of refNodes) {
         const externalId = `${NODE_PREFIX}${element.id}`;
         const ref = element.tags && element.tags[NETWORKS[mode].refTag];
@@ -278,6 +284,22 @@ const run = async () => {
   const refIndex = new PointIndex();
   for (const node of sourceNodes.values()) refIndex.add(node);
 
+  // Wegdek: elke weg (met zijn lijn) gelabeld volgens zijn OSM-tags.
+  const surfaceLines = [];
+  const seenWays = new Set();
+  for (const { element } of routeElements.values()) {
+    for (const member of element.members || []) {
+      if (member.type !== 'way' || !Array.isArray(member.geometry) || seenWays.has(member.ref)) continue;
+      seenWays.add(member.ref);
+      const code = wayCodes.get(member.ref);
+      if (code === null || code === undefined) continue;
+      surfaceLines.push({ coords: member.geometry.map((point) => [point.lat, point.lon]), code });
+    }
+  }
+  const surfaceIndex = buildSegmentIndex(surfaceLines);
+  let surfaceKnown = 0;
+  let surfaceTotal = 0;
+
   const sourceConnections = [];
   const stats = {
     routes: routeElements.size,
@@ -306,18 +328,27 @@ const run = async () => {
       continue;
     }
 
+    const surface = classifyLine(line, [surfaceIndex]);
+    for (const [from, to, code] of surface || []) {
+      surfaceTotal += to - from;
+      if (code !== -1) surfaceKnown += to - from;
+    }
     sourceConnections.push({
       externalId,
       fromRef: start.externalId,
       toRef: end.externalId,
       distanceKm: Math.round(lineKm(line) * 1000) / 1000,
       geometry: { type: 'LineString', coordinates: line.map(([lat, lng]) => [lng, lat]) },
+      surface,
       mode,
     });
     stats.connectionsBuilt += 1;
   }
 
   log(`OSM: ${sourceNodes.size} knooppunten, ${stats.routes} trajecten`);
+  log(
+    `Wegdek: ${surfaceTotal ? Math.round((surfaceKnown / surfaceTotal) * 100) : 0}% van de trajectlengte gekoppeld aan verhard/onverhard`
+  );
   log(
     `Trajecten: ${stats.connectionsBuilt} bruikbaar, ${stats.incomplete} met onderbroken lijn (langste stuk gebruikt), ${stats.noEndpoints} zonder herkenbaar begin/einde, ${stats.noGeometry} zonder lijn`
   );
@@ -430,7 +461,7 @@ const run = async () => {
 
     // Verbindingen.
     const existingConnections = await findAll(CONNECTION_UID, {
-      select: ['id', 'external_id', 'distance_km', 'mode'],
+      select: ['id', 'external_id', 'distance_km', 'mode', 'surface'],
       populate: { from_node: { select: ['id'] }, to_node: { select: ['id'] } },
     });
     const osmConnectionRows = new Map();
@@ -465,6 +496,7 @@ const run = async () => {
         relationId(row.from_node) !== fromId ||
         relationId(row.to_node) !== toId ||
         row.mode !== connection.mode ||
+        JSON.stringify(row.surface ?? null) !== JSON.stringify(connection.surface ?? null) ||
         Math.abs(Number(row.distance_km || 0) - connection.distanceKm) > 0.005;
       if (changed) connectionUpdates.push({ id: row.id, target });
       else connectionsUnchanged += 1;
@@ -483,6 +515,7 @@ const run = async () => {
       geometry: target.geometry,
       mode: target.mode,
       is_virtual: false,
+      surface: target.surface ?? null,
     });
 
     if (options.apply) {

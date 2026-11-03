@@ -1233,6 +1233,7 @@ export interface ApiNodeConnectionNodeConnection
       'api::node-network.node-network'
     >;
     publishedAt: Schema.Attribute.DateTime;
+    surface: Schema.Attribute.JSON;
     to_node: Schema.Attribute.Relation<'manyToMany', 'api::node.node'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &

@@ -23,6 +23,15 @@
 // new API Token > Token type: Full access. Without --dry-run it needs write
 // access; --dry-run only needs read access.
 //
+// Sinds okt 2026 worden ook POI's geïmporteerd die op de oude site enkel aan
+// een wandel- of fietsroute hingen (niet aan een logie), en krijgen punten
+// zonder Type een automatisch bepaald type (zie scripts/legacy-poi-type.js).
+// Koppelen aan routes gebeurt daarna met scripts/link-legacy-pois-to-routes.js.
+//
+// --skip-existing: bestaande POI's (zelfde titel) niet opnieuw bijwerken en hun
+// foto niet opnieuw opladen -- enkel ontbrekende POI's aanmaken. Aangeraden
+// bij elke herhaalde run, anders komt elke foto nog eens in de mediabibliotheek.
+//
 // --legacy-root/--image-folder should point at the folder on your machine
 // with the actual point images (e.g. Vlooybergtoren.jpg). If an image can't
 // be found, the poi is still created/updated, just without an image.
@@ -33,7 +42,7 @@ const mime = require('mime-types');
 
 const DEFAULT_LEGACY_ROOT = '/Users/jancoddens/Documents/Websites/Routezoeker.com/V4';
 const DEFAULT_BASE_URL = 'https://api.routezoeker.com';
-const POI_TYPES = ['Gebouwen', 'Locaties', 'Wandelnetwerken'];
+const { inferPoiType } = require('./legacy-poi-type');
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -50,6 +59,7 @@ const parseArgs = () => {
     limit: undefined,
     dryRun: false,
     fixAltText: false,
+    skipExisting: false,
   };
 
   for (let index = 0; index < rawArgs.length; index += 1) {
@@ -57,6 +67,11 @@ const parseArgs = () => {
 
     if (arg === '--dry-run') {
       options.dryRun = true;
+      continue;
+    }
+
+    if (arg === '--skip-existing') {
+      options.skipExisting = true;
       continue;
     }
 
@@ -404,15 +419,18 @@ const strapiRequest = async (options, requestPath, init = {}) => {
   return body;
 };
 
+// Zoekt op titel (hoofdletterongevoelig); bij meerdere hits wint die met
+// hetzelfde type. Zo ontstaat geen dubbel als het type van een punt nu
+// automatisch bepaald wordt en afwijkt van een eerder geïmporteerde versie.
 const findPoiByTitleAndType = async (options, title, type) => {
   const query = new URLSearchParams({
-    'filters[title][$eq]': title,
-    'filters[type][$eq]': type,
-    'pagination[pageSize]': '1',
+    'filters[title][$eqi]': title,
+    'pagination[pageSize]': '10',
     status: 'draft',
   });
   const body = await strapiRequest(options, `/api/pois?${query.toString()}`);
-  return body?.data?.[0] ?? null;
+  const hits = body?.data ?? [];
+  return hits.find((hit) => hit.type === type) ?? hits[0] ?? null;
 };
 
 const findPartnerBySlug = async (options, slug) => {
@@ -550,7 +568,16 @@ const run = async () => {
     linkedPidsByLid.get(lid).add(pid);
   }
 
-  const distinctPids = Array.from(new Set(links.map((link) => Number(link.Pid))));
+  // Alle punten die ergens gekoppeld zijn: aan een logie (Lid) of aan een
+  // wandel-/fietsroute (Wid/Fid). Partners koppelen gebeurt verder enkel voor Lid.
+  const distinctPids = Array.from(
+    new Set(
+      pointsRoute
+        .filter((row) => Number(row.Lid) !== 0 || Number(row.Wid) !== 0 || Number(row.Fid) !== 0)
+        .map((row) => Number(row.Pid))
+    )
+  );
+  const createdPreview = [];
   const pidsToImport = typeof options.limit === 'number' ? distinctPids.slice(0, options.limit) : distinctPids;
   const pidToStrapiId = new Map(); // pid -> { id, documentId }
 
@@ -566,11 +593,19 @@ const run = async () => {
       continue;
     }
 
-    const type = toStringValue(point.Type);
+    const type = inferPoiType(point);
     const title = toStringValue(point.Title);
 
-    if (!POI_TYPES.includes(type) || !title) {
+    if (!type || !title) {
       skippedUnknownType += 1;
+      continue;
+    }
+
+    const existing = await findPoiByTitleAndType(options, title, type);
+
+    if (existing && options.skipExisting) {
+      pidToStrapiId.set(pid, { id: existing.id, documentId: existing.documentId });
+      poisSkipped += 1;
       continue;
     }
 
@@ -592,7 +627,9 @@ const run = async () => {
 
     const data = { title, type, ...(description ? { description } : {}), ...(imageId ? { image: imageId } : {}), ...(link ? { link } : {}) };
 
-    const existing = await findPoiByTitleAndType(options, title, type);
+    if (!existing) {
+      createdPreview.push({ pid, title, type, typeWasEmpty: !toStringValue(point.Type), image: Boolean(imagePath) });
+    }
 
     if (options.dryRun) {
       pidToStrapiId.set(pid, existing ? { id: existing.id, documentId: existing.documentId } : { id: -pid, documentId: null });
@@ -662,6 +699,8 @@ const run = async () => {
         poisSkipped,
         partnersLinked,
         partnersNotFound,
+        skipExisting: options.skipExisting,
+        newPois: createdPreview,
       },
       null,
       2

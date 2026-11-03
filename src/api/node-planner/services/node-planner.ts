@@ -151,6 +151,7 @@ type ConnectionRow = {
   geometry?: unknown;
   mode?: string | null;
   is_virtual?: boolean | null;
+  surface?: unknown;
   // from_node / to_node zijn manyToMany in het schema: Strapi geeft een lijst terug.
   from_node?: RelationValue;
   to_node?: RelationValue;
@@ -209,7 +210,7 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
   let missingEndpoints = 0;
   for (let offset = 0; ; offset += CONNECTION_BATCH) {
     const batch = (await strapi.db.query('api::node-connection.node-connection').findMany({
-      select: ['id', 'distance_km', 'geometry', 'mode', 'is_virtual'],
+      select: ['id', 'distance_km', 'geometry', 'mode', 'is_virtual', 'surface'],
       populate: {
         from_node: { select: ['id'] },
         to_node: { select: ['id'] },
@@ -258,6 +259,7 @@ const loadGraph = async (strapi: Core.Strapi): Promise<PlannerGraph> => {
         geometry: row.geometry,
         mode,
         isVirtual: row.is_virtual ?? false,
+        surface: row.surface ?? null,
       });
     }
 
