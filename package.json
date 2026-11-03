@@ -18,6 +18,7 @@
     "import:legacy-users": "node scripts/import-legacy-users.js",
     "import:node-network": "node scripts/import-node-network.js",
     "sync:knooppunten-vlaanderen": "node scripts/sync-flanders-node-networks.js",
+    "sync:knooppunten-nl": "node scripts/sync-osm-nl-node-networks.js",
     "start": "strapi start",
     "strapi": "strapi",
     "upgrade": "npx @strapi/upgrade latest",

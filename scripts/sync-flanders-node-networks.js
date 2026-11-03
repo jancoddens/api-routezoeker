@@ -514,11 +514,13 @@ const run = async () => {
 
     // 5. Verwijderen wat niet meer in de bron staat.
     const sourceConnectionIds = new Set(sourceConnections.map((connection) => connection.externalId));
+    // Records uit andere bronnen (bv. OpenStreetMap, "osm:...") blijven onaangeroerd.
+    const isOtherSource = (row) => /^osm:/.test(String(row.external_id || ''));
     const staleConnections = existingConnections.filter(
-      (row) => !row.external_id || !sourceConnectionIds.has(String(row.external_id))
+      (row) => !isOtherSource(row) && (!row.external_id || !sourceConnectionIds.has(String(row.external_id)))
     );
     const staleNodes = existingNodes.filter(
-      (row) => !row.external_id || !sourceNodes.has(String(row.external_id))
+      (row) => !isOtherSource(row) && (!row.external_id || !sourceNodes.has(String(row.external_id)))
     );
     log(
       `Niet (meer) in de bron: ${staleConnections.length} verbindingen, ${staleNodes.length} knooppunten${
