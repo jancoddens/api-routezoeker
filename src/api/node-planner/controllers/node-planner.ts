@@ -17,7 +17,7 @@ import {
   reverseSurfaceRuns,
   edgesInBbox,
   parsePlannerMode,
-  shortestPath,
+  plannerPath,
   stepCoords,
   type PlannerGraph,
   type PlannerNode,
@@ -100,7 +100,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 
     const mode = parsePlannerMode(ctx.query.mode);
     const graph = await getGraph(strapi);
-    const path = shortestPath(graph, from, to, mode);
+    const path = plannerPath(graph, from, to, mode);
 
     if (!path) {
       return ctx.notFound('Geen verbinding gevonden tussen deze knooppunten');

@@ -477,7 +477,9 @@ export const shortestPath = (
   fromId: number,
   toId: number,
   mode: PlannerMode,
-  maxExpansions = 400000
+  maxExpansions = 400000,
+  /** enkel via knooppunten zonder nummer (kruispunten zonder bord) lopen */
+  directOnly = false
 ): PlannerPath | null => {
   const from = graph.nodes.get(fromId);
   const to = graph.nodes.get(toId);
@@ -511,6 +513,8 @@ export const shortestPath = (
       if (edge.mode !== mode) continue;
       const next = edge.a === current ? edge.b : edge.a;
       if (closed.has(next)) continue;
+      // Rechtstreekse verbinding: geen ander genummerd knooppunt onderweg.
+      if (directOnly && next !== toId && graph.nodes.get(next)!.n !== '') continue;
       const candidate = currentDist + edge.km;
       if (candidate < (dist.get(next) ?? Infinity)) {
         dist.set(next, candidate);
@@ -594,4 +598,32 @@ export const nearestNode = (
   }
 
   return best;
+};
+
+/** Zo lang mag een rechtstreekse verbinding maximaal zijn t.o.v. de kortste weg. */
+const MAX_DIRECT_DETOUR = 4;
+
+/**
+ * Route tussen twee aangeklikte knooppunten. Zijn het buren (rechtstreeks
+ * verbonden, eventueel via kruispunten zonder nummer), dan volgen we die
+ * verbinding, zoals op een knooppuntenkaart; anders de kortste weg.
+ */
+export const plannerPath = (
+  graph: PlannerGraph,
+  fromId: number,
+  toId: number,
+  mode: PlannerMode
+): PlannerPath | null => {
+  const shortest = shortestPath(graph, fromId, toId, mode);
+  if (!shortest || fromId === toId) return shortest;
+
+  // Al een rechtstreekse verbinding (geen genummerd knooppunt onderweg)?
+  const passesNumbered = shortest.nodeIds
+    .slice(1, -1)
+    .some((id) => graph.nodes.get(id)!.n !== '');
+  if (!passesNumbered) return shortest;
+
+  const direct = shortestPath(graph, fromId, toId, mode, 50000, true);
+  if (direct && direct.km <= shortest.km * MAX_DIRECT_DETOUR) return direct;
+  return shortest;
 };
