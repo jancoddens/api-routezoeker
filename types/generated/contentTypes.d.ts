@@ -1782,6 +1782,49 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiPlannedRoutePlannedRoute
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'planned_routes';
+  info: {
+    description: 'Routes die gebruikers in de knooppuntenplanner uitstippelden en bewaarden';
+    displayName: 'Planned route';
+    pluralName: 'planned-routes';
+    singularName: 'planned-route';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    distance_km: Schema.Attribute.Decimal;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::planned-route.planned-route'
+    > &
+      Schema.Attribute.Private;
+    mode: Schema.Attribute.Enumeration<['wandelen', 'fietsen']> &
+      Schema.Attribute.DefaultTo<'wandelen'>;
+    name: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 120;
+      }>;
+    node_numbers: Schema.Attribute.Text;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    waypoints: Schema.Attribute.JSON;
+  };
+}
+
 export interface ApiPoiPoi extends Struct.CollectionTypeSchema {
   collectionName: 'pois';
   info: {
@@ -2990,6 +3033,7 @@ declare module '@strapi/strapi' {
       'api::page.page': ApiPagePage;
       'api::partner-subscription.partner-subscription': ApiPartnerSubscriptionPartnerSubscription;
       'api::partner.partner': ApiPartnerPartner;
+      'api::planned-route.planned-route': ApiPlannedRoutePlannedRoute;
       'api::poi.poi': ApiPoiPoi;
       'api::province.province': ApiProvinceProvince;
       'api::region.region': ApiRegionRegion;

@@ -1,0 +1,40 @@
+{
+  "kind": "collectionType",
+  "collectionName": "planned_routes",
+  "info": {
+    "singularName": "planned-route",
+    "pluralName": "planned-routes",
+    "displayName": "Planned route",
+    "description": "Routes die gebruikers in de knooppuntenplanner uitstippelden en bewaarden"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "maxLength": 120
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "mode": {
+      "type": "enumeration",
+      "enum": ["wandelen", "fietsen"],
+      "default": "wandelen"
+    },
+    "waypoints": {
+      "type": "json"
+    },
+    "distance_km": {
+      "type": "decimal"
+    },
+    "node_numbers": {
+      "type": "text"
+    }
+  }
+}
