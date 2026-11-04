@@ -2063,6 +2063,64 @@ export interface ApiRegionRegion extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiReviewReview extends Struct.CollectionTypeSchema {
+  collectionName: 'reviews';
+  info: {
+    description: "Reviews en foto's van wandelaars/fietsers over een route. Enkel reviews met review_status 'approved' zijn zichtbaar op de site.";
+    displayName: 'Review';
+    pluralName: 'reviews';
+    singularName: 'review';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    author_name: Schema.Attribute.String &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 80;
+      }>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::review.review'
+    > &
+      Schema.Attribute.Private;
+    moderation_note: Schema.Attribute.Text & Schema.Attribute.Private;
+    photos: Schema.Attribute.Media<'images', true>;
+    publishedAt: Schema.Attribute.DateTime;
+    rating: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 5;
+          min: 1;
+        },
+        number
+      >;
+    review_status: Schema.Attribute.Enumeration<
+      ['pending', 'approved', 'rejected']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'pending'>;
+    route: Schema.Attribute.Relation<'manyToOne', 'api::route.route'>;
+    text: Schema.Attribute.Text &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 2000;
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    visited_on: Schema.Attribute.Date;
+  };
+}
+
 export interface ApiRouteTypeRouteType extends Struct.CollectionTypeSchema {
   collectionName: 'route_types';
   info: {
@@ -3037,6 +3095,7 @@ declare module '@strapi/strapi' {
       'api::poi.poi': ApiPoiPoi;
       'api::province.province': ApiProvinceProvince;
       'api::region.region': ApiRegionRegion;
+      'api::review.review': ApiReviewReview;
       'api::route-type.route-type': ApiRouteTypeRouteType;
       'api::route.route': ApiRouteRoute;
       'api::tag.tag': ApiTagTag;

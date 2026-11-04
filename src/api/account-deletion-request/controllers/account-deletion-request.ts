@@ -149,6 +149,7 @@ export default factories.createCoreController(UID, ({ strapi }) => ({
 
     await deleteDocumentsForUser(strapi, 'api::favorite-route.favorite-route', userId);
     await deleteDocumentsForUser(strapi, 'api::favorite-logie.favorite-logie', userId);
+    await deleteDocumentsForUser(strapi, 'api::review.review', userId);
     await deleteDocumentsForUser(strapi, 'api::user-profile.user-profile', userId);
 
     const newsletterSubscriptions = await strapi.documents('api::newsletter-subscription.newsletter-subscription').findMany({

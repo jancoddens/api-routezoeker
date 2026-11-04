@@ -22,6 +22,7 @@ export default {
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     await configurePasswordResetEmail(strapi);
     await ensurePartnerDashboardPermissions(strapi);
+    await ensureReviewPermissions(strapi);
     await ensurePartnerInviteCodes(strapi);
 
     const autofillUpdatesInFlight = new Set<number>();
@@ -97,6 +98,40 @@ const PARTNER_DASHBOARD_ACTIONS = [
   'api::partner.partner.uploadMyPartnerMedia',
   'api::partner.partner.claimPartnerInvite',
 ];
+
+// Reviews: aangemelde gebruikers mogen een review indienen, iedereen mag de
+// goedgekeurde reviews van een route lezen.
+const ROLE_ACTIONS: Record<string, string[]> = {
+  authenticated: ['api::review.review.submitMe', 'api::review.review.listFor'],
+  public: ['api::review.review.listFor'],
+};
+
+const ensureReviewPermissions = async (strapi: Core.Strapi) => {
+  try {
+    for (const [type, actions] of Object.entries(ROLE_ACTIONS)) {
+      const role = await strapi.db
+        .query('plugin::users-permissions.role')
+        .findOne({ where: { type }, select: ['id'] });
+      if (!role) continue;
+
+      const existing = await strapi.db.query('plugin::users-permissions.permission').findMany({
+        where: { role: { id: role.id }, action: { $in: actions } },
+        select: ['action'],
+      });
+      const existingActions = new Set(existing.map((permission: { action: string }) => permission.action));
+
+      for (const action of actions) {
+        if (!existingActions.has(action)) {
+          await strapi.db.query('plugin::users-permissions.permission').create({
+            data: { action, role: role.id },
+          });
+        }
+      }
+    }
+  } catch (error) {
+    strapi.log.error('[review] rechten konden niet gezet worden', error);
+  }
+};
 
 const ensurePartnerDashboardPermissions = async (strapi: Core.Strapi) => {
   try {
