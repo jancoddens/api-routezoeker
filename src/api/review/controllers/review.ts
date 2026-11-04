@@ -258,7 +258,9 @@ export default factories.createCoreController(UID, ({ strapi }) => {
         populate: ['photos'],
       } as any);
 
-      await notifyModerators(review, targetType, targetTitle);
+      // Niet wachten op de mail: een trage mailserver mag het antwoord aan de
+      // bezoeker niet ophouden (anders time-out terwijl de review al bewaard is).
+      void notifyModerators(review, targetType, targetTitle);
 
       ctx.status = 201;
       return { ok: true, status: 'pending' };
