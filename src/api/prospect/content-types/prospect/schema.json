@@ -1,0 +1,53 @@
+{
+  "kind": "collectionType",
+  "collectionName": "prospects",
+  "info": {
+    "singularName": "prospect",
+    "pluralName": "prospects",
+    "displayName": "Prospect",
+    "description": "Logies en horeca die we als partner willen werven (alleen voor intern gebruik in de admin)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": { "type": "string", "required": true },
+    "status": {
+      "type": "enumeration",
+      "enum": ["nieuw", "gemaild", "opgevolgd", "in_gesprek", "partner", "niet_geinteresseerd", "niet_contacteren"],
+      "default": "nieuw",
+      "required": true
+    },
+    "priority": { "type": "enumeration", "enum": ["A", "B", "C"] },
+    "follow_up_at": { "type": "date" },
+    "city": { "type": "string" },
+    "province": { "type": "string" },
+    "type": { "type": "string" },
+    "segment": { "type": "enumeration", "enum": ["logies", "horeca"], "default": "logies" },
+    "email": { "type": "email" },
+    "phone": { "type": "string" },
+    "website": { "type": "string" },
+    "street": { "type": "string" },
+    "postcode": { "type": "string" },
+    "walk_routes_5km": { "type": "integer" },
+    "bike_routes_5km": { "type": "integer" },
+    "nearest_routes": { "type": "text" },
+    "score": { "type": "decimal" },
+    "rank": { "type": "integer" },
+    "vlaanderen_vakantieland_url": { "type": "string" },
+    "beds": { "type": "integer" },
+    "other_properties": { "type": "text" },
+    "mailed_at": { "type": "date" },
+    "notes": { "type": "text" },
+    "mail_subject": { "type": "string" },
+    "mail_body": { "type": "text" },
+    "followup_subject": { "type": "string" },
+    "followup_body": { "type": "text" },
+    "history": { "type": "text" },
+    "latitude": { "type": "float" },
+    "longitude": { "type": "float" },
+    "source": { "type": "string" },
+    "source_id": { "type": "string", "unique": true }
+  }
+}

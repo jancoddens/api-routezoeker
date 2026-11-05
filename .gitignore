@@ -132,3 +132,6 @@ build
 resp.json
 ids-selectie.txt
 selectie.txt
+
+# Prospectlijst (contactgegevens), wordt via Plesk geüpload
+data/prospects*.json
