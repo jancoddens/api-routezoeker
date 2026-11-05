@@ -1,0 +1,26 @@
+{
+  "kind": "singleType",
+  "collectionName": "prospect_mail_templates",
+  "info": {
+    "singularName": "prospect-mail-template",
+    "pluralName": "prospect-mail-templates",
+    "displayName": "Prospect mailteksten",
+    "description": "Teksten voor de prospectmails. Gebruik {naam}, {gemeente}, {soort}, {routes}, {Routes}, {waaronder}, {routes_link}, {pakketten_link} en {uitschrijflink}."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "from_name": { "type": "string", "default": "Jan van Routezoeker" },
+    "max_per_day": { "type": "integer", "default": 25, "min": 1, "max": 200 },
+    "logies_first_subject": { "type": "string" },
+    "logies_first_body": { "type": "text" },
+    "logies_followup_subject": { "type": "string" },
+    "logies_followup_body": { "type": "text" },
+    "horeca_first_subject": { "type": "string" },
+    "horeca_first_body": { "type": "text" },
+    "horeca_followup_subject": { "type": "string" },
+    "horeca_followup_body": { "type": "text" }
+  }
+}

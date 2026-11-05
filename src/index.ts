@@ -2,6 +2,7 @@ import type { Core } from '@strapi/strapi';
 
 import { buildRouteAutofill } from './utils/gpx-autofill';
 import { ensurePartnerInviteCodes } from './utils/partner-invite';
+import { ensureProspectSetup, MAX_PER_BATCH, queueMails, sendTestMail, type MailKind } from './utils/prospect-mailer';
 
 export default {
   /**
@@ -10,7 +11,40 @@ export default {
    *
    * This gives you an opportunity to extend code.
    */
-  register(/* { strapi }: { strapi: Core.Strapi } */) {},
+  register({ strapi }: { strapi: Core.Strapi }) {
+    // Admin-routes voor de knoppen "Verstuur eerste mail" / "Verstuur opvolgmail"
+    // / "Testmail naar mij" in de lijst Prospects (zie src/admin/app.tsx).
+    // Enkel bereikbaar voor ingelogde admin-gebruikers.
+    const readKind = (value: unknown): MailKind => (value === 'followup' ? 'followup' : 'first');
+    strapi.server.routes({
+      type: 'admin',
+      prefix: '/prospect-mailer',
+      routes: [
+        {
+          method: 'POST',
+          path: '/send',
+          handler: async (ctx: any) => {
+            const { documentIds, kind } = ctx.request.body || {};
+            if (!Array.isArray(documentIds) || !documentIds.length) return ctx.badRequest('Selecteer minstens één prospect');
+            if (documentIds.length > MAX_PER_BATCH) return ctx.badRequest(`Maximaal ${MAX_PER_BATCH} prospects per keer`);
+            ctx.body = await queueMails(strapi, documentIds.map(String), readKind(kind));
+          },
+          config: { policies: ['admin::isAuthenticatedAdmin'] },
+        },
+        {
+          method: 'POST',
+          path: '/test',
+          handler: async (ctx: any) => {
+            const { documentId, kind } = ctx.request.body || {};
+            const to = ctx.state?.user?.email;
+            if (!documentId || !to) return ctx.badRequest('Geen prospect of geen e-mailadres voor jouw account');
+            ctx.body = await sendTestMail(strapi, String(documentId), readKind(kind), to);
+          },
+          config: { policies: ['admin::isAuthenticatedAdmin'] },
+        },
+      ],
+    } as any);
+  },
 
   /**
    * An asynchronous bootstrap function that runs before
@@ -24,6 +58,7 @@ export default {
     await ensurePartnerDashboardPermissions(strapi);
     await ensureReviewPermissions(strapi);
     await ensurePartnerInviteCodes(strapi);
+    await ensureProspectSetup(strapi);
 
     const autofillUpdatesInFlight = new Set<number>();
 

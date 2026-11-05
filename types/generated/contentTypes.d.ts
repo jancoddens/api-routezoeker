@@ -1893,6 +1893,130 @@ export interface ApiPoiPoi extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiProspectMailTemplateProspectMailTemplate
+  extends Struct.SingleTypeSchema {
+  collectionName: 'prospect_mail_templates';
+  info: {
+    description: 'Teksten voor de prospectmails. Gebruik {naam}, {gemeente}, {soort}, {routes}, {Routes}, {waaronder}, {routes_link}, {pakketten_link} en {uitschrijflink}.';
+    displayName: 'Prospect mailteksten';
+    pluralName: 'prospect-mail-templates';
+    singularName: 'prospect-mail-template';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    from_name: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'Jan van Routezoeker'>;
+    horeca_first_body: Schema.Attribute.Text;
+    horeca_first_subject: Schema.Attribute.String;
+    horeca_followup_body: Schema.Attribute.Text;
+    horeca_followup_subject: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::prospect-mail-template.prospect-mail-template'
+    > &
+      Schema.Attribute.Private;
+    logies_first_body: Schema.Attribute.Text;
+    logies_first_subject: Schema.Attribute.String;
+    logies_followup_body: Schema.Attribute.Text;
+    logies_followup_subject: Schema.Attribute.String;
+    max_per_day: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 200;
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<25>;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiProspectProspect extends Struct.CollectionTypeSchema {
+  collectionName: 'prospects';
+  info: {
+    description: 'Logies en horeca die we als partner willen werven (alleen voor intern gebruik in de admin)';
+    displayName: 'Prospect';
+    pluralName: 'prospects';
+    singularName: 'prospect';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    beds: Schema.Attribute.Integer;
+    bike_routes_5km: Schema.Attribute.Integer;
+    city: Schema.Attribute.String;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    email: Schema.Attribute.Email;
+    follow_up_at: Schema.Attribute.Date;
+    history: Schema.Attribute.Text;
+    last_mail_result: Schema.Attribute.String;
+    last_mailed_at: Schema.Attribute.DateTime;
+    latitude: Schema.Attribute.Float;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::prospect.prospect'
+    > &
+      Schema.Attribute.Private;
+    longitude: Schema.Attribute.Float;
+    mail_count: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    mailed_at: Schema.Attribute.Date;
+    name: Schema.Attribute.String & Schema.Attribute.Required;
+    nearest_routes: Schema.Attribute.Text;
+    notes: Schema.Attribute.Text;
+    other_properties: Schema.Attribute.Text;
+    phone: Schema.Attribute.String;
+    postcode: Schema.Attribute.String;
+    priority: Schema.Attribute.Enumeration<['A', 'B', 'C']>;
+    province: Schema.Attribute.String;
+    publishedAt: Schema.Attribute.DateTime;
+    rank: Schema.Attribute.Integer;
+    score: Schema.Attribute.Decimal;
+    segment: Schema.Attribute.Enumeration<['logies', 'horeca']> &
+      Schema.Attribute.DefaultTo<'logies'>;
+    source: Schema.Attribute.String;
+    source_id: Schema.Attribute.String & Schema.Attribute.Unique;
+    stage: Schema.Attribute.Enumeration<
+      [
+        'nieuw',
+        'gemaild',
+        'opgevolgd',
+        'in_gesprek',
+        'partner',
+        'niet_geinteresseerd',
+        'niet_contacteren',
+      ]
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'nieuw'>;
+    street: Schema.Attribute.String;
+    type: Schema.Attribute.String;
+    unsubscribe_token: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.Unique;
+    unsubscribed_at: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    vlaanderen_vakantieland_url: Schema.Attribute.String;
+    walk_routes_5km: Schema.Attribute.Integer;
+    website: Schema.Attribute.String;
+  };
+}
+
 export interface ApiProvinceProvince extends Struct.CollectionTypeSchema {
   collectionName: 'provinces';
   info: {
@@ -3093,6 +3217,8 @@ declare module '@strapi/strapi' {
       'api::partner.partner': ApiPartnerPartner;
       'api::planned-route.planned-route': ApiPlannedRoutePlannedRoute;
       'api::poi.poi': ApiPoiPoi;
+      'api::prospect-mail-template.prospect-mail-template': ApiProspectMailTemplateProspectMailTemplate;
+      'api::prospect.prospect': ApiProspectProspect;
       'api::province.province': ApiProvinceProvince;
       'api::region.region': ApiRegionRegion;
       'api::review.review': ApiReviewReview;
