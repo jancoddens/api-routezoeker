@@ -681,3 +681,27 @@ export const sendInvoiceMail = async (
   }
   return { to, subject };
 };
+
+// ---------- online / offline ----------
+
+/**
+ * Partner offline halen of terug online zetten. De site toont een partner
+ * enkel als het abonnement "active" of "expired" is, gestart is en de
+ * einddatum niet voorbij is. Offline = status "paused" + einddatum gisteren.
+ * Draft en gepubliceerde versie worden allebei aangepast.
+ */
+export const setSubscriptionOnline = async (strapi: Core.Strapi, documentId: string, online: boolean) => {
+  const rows = await strapi.db.query(SUB).findMany({ where: { documentId } });
+  if (!rows.length) throw new Error('Abonnement niet gevonden');
+  const stampLine = stamp(online ? 'Terug online gezet' : 'Offline gehaald');
+  for (const row of rows) {
+    await strapi.db.query(SUB).update({
+      where: { id: row.id },
+      data: online
+        ? { status_subscription: 'active', end_date: null, notes: [row.notes, stampLine].filter(Boolean).join('\n') }
+        : { status_subscription: 'paused', end_date: addDays(today(), -1), notes: [row.notes, stampLine].filter(Boolean).join('\n') },
+    });
+  }
+  return { documentId, online };
+};
+

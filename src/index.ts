@@ -2,7 +2,7 @@ import type { Core } from '@strapi/strapi';
 
 import { buildRouteAutofill } from './utils/gpx-autofill';
 import { ensurePartnerInviteCodes } from './utils/partner-invite';
-import { createInvoice, ensureInvoiceSetup, getOverview, renderPdf, sendInvoiceMail, updateStatus } from './utils/partner-invoicing';
+import { createInvoice, ensureInvoiceSetup, getOverview, renderPdf, sendInvoiceMail, setSubscriptionOnline, updateStatus } from './utils/partner-invoicing';
 import { ensureProspectSetup, MAX_PER_BATCH, queueMails, sendTestMail, type MailKind } from './utils/prospect-mailer';
 
 export default {
@@ -105,6 +105,12 @@ export default {
           method: 'POST',
           path: '/invoices/:id/status',
           handler: guard((ctx) => updateStatus(strapi, Number(ctx.params.id), ctx.request.body || {})),
+          config: adminOnly,
+        },
+        {
+          method: 'POST',
+          path: '/subscriptions/:documentId/online',
+          handler: guard((ctx) => setSubscriptionOnline(strapi, String(ctx.params.documentId), ctx.request.body?.online === true)),
           config: adminOnly,
         },
       ],

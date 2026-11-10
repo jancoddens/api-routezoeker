@@ -98,6 +98,7 @@ type Dialog =
   | { type: 'send'; invoice: Invoice; kind: 'invoice' | 'reminder'; email?: string }
   | { type: 'paid'; invoice: Invoice }
   | { type: 'cancel'; invoice: Invoice }
+  | { type: 'online'; sub: Sub; online: boolean }
   | null;
 
 const InvoicesPage = () => {
@@ -106,7 +107,7 @@ const InvoicesPage = () => {
   const [data, setData] = React.useState<Overview | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [tab, setTab] = React.useState('subs');
-  const [filter, setFilter] = React.useState<'all' | 'due' | 'active'>('due');
+  const [filter, setFilter] = React.useState<'all' | 'due' | 'active' | 'offline'>('due');
   const [invoiceFilter, setInvoiceFilter] = React.useState<'open' | 'all'>('open');
   const [search, setSearch] = React.useState('');
   const [dialog, setDialog] = React.useState<Dialog>(null);
@@ -162,6 +163,7 @@ const InvoicesPage = () => {
     if (q && !`${s.id} ${s.name} ${s.email} ${s.package}`.toLowerCase().includes(q)) return false;
     if (filter === 'due') return s.due;
     if (filter === 'active') return s.status === 'active';
+    if (filter === 'offline') return s.status === 'paused';
     return true;
   });
   const invoices = (data?.invoices || []).filter((i) => {
@@ -236,6 +238,9 @@ const InvoicesPage = () => {
               <FilterButton active={filter === 'active'} onClick={() => setFilter('active')}>
                 Actief
               </FilterButton>
+              <FilterButton active={filter === 'offline'} onClick={() => setFilter('offline')}>
+                Offline
+              </FilterButton>
               <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>
                 Alles ({data?.subscriptions.length || 0})
               </FilterButton>
@@ -297,9 +302,20 @@ const InvoicesPage = () => {
                       )}
                     </Td>
                     <Td>
-                      <Button size="S" variant={s.due ? 'default' : 'secondary'} onClick={() => setDialog({ type: 'create', sub: s })}>
-                        Nieuwe proforma
-                      </Button>
+                      <Flex gap={1}>
+                        <Button size="S" variant={s.due ? 'default' : 'secondary'} onClick={() => setDialog({ type: 'create', sub: s })}>
+                          Nieuwe proforma
+                        </Button>
+                        {s.status === 'paused' ? (
+                          <Button size="S" variant="success-light" onClick={() => setDialog({ type: 'online', sub: s, online: true })}>
+                            Online zetten
+                          </Button>
+                        ) : (
+                          <Button size="S" variant="danger-light" onClick={() => setDialog({ type: 'online', sub: s, online: false })}>
+                            Offline
+                          </Button>
+                        )}
+                      </Flex>
                     </Td>
                   </Tr>
                 ))}
@@ -494,6 +510,50 @@ const InvoicesPage = () => {
             }).catch(() => {})
           }
         />
+      )}
+
+      {dialog?.type === 'online' && (
+        <Modal.Root open onOpenChange={(open: boolean) => !open && setDialog(null)}>
+          <Modal.Content>
+            <Modal.Header>
+              <Modal.Title>
+                {dialog.sub.name} {dialog.online ? 'terug online zetten?' : 'offline halen?'}
+              </Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <Typography>
+                {dialog.online
+                  ? 'Het abonnement gaat terug op "active" en de einddatum wordt gewist. De partnerpagina en de vermeldingen bij de routes komen terug op de site.'
+                  : 'Het abonnement gaat op "paused" met einddatum gisteren. De partnerpagina verdwijnt van de site (geeft een 404) en de partner staat niet meer bij de routes, op de logiespagina en in de sitemap. Openstaande proforma\'s blijven staan; annuleer ze zelf als ze niet meer betaald moeten worden.'}
+              </Typography>
+              <Box paddingTop={3}>
+                <Typography variant="pi" textColor="neutral600">
+                  De site ververst haar gegevens om het half uur, dus het kan tot 30 minuten duren voor je het ziet.
+                </Typography>
+              </Box>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" onClick={() => setDialog(null)}>Terug</Button>
+              <Button
+                variant={dialog.online ? 'success' : 'danger'}
+                loading={busy}
+                onClick={() =>
+                  run(async () => {
+                    try {
+                      await post<any>(`${API}/subscriptions/${dialog.sub.documentId}/online`, { online: dialog.online });
+                      toggleNotification({ type: 'success', message: `${dialog.sub.name} is ${dialog.online ? 'terug online' : 'offline gehaald'}` });
+                    } catch (error) {
+                      fail(error, 'Aanpassen mislukt');
+                      throw error;
+                    }
+                  }).catch(() => {})
+                }
+              >
+                {dialog.online ? 'Online zetten' : 'Offline halen'}
+              </Button>
+            </Modal.Footer>
+          </Modal.Content>
+        </Modal.Root>
       )}
 
       {dialog?.type === 'cancel' && (
