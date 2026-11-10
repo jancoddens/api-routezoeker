@@ -19,9 +19,21 @@ a{color:#1d6b4a}
 const escapeHtml = (value: string) =>
   String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
+const TEST_TOKEN = 'testmail-voorbeeld';
+const testPage = () =>
+  page(
+    'Testmail',
+    '<h1>Dit is een testmail</h1><p>De uitschrijflink werkt hier niet, want een testmail hoort bij geen enkele prospect. In een echte mail kom je op deze plek op een pagina met de knop "Uitschrijven".</p>',
+  );
+
 export default factories.createCoreController('api::prospect.prospect', ({ strapi }) => ({
   async unsubscribePage(ctx) {
     const token = String(ctx.params.token || '');
+    ctx.type = 'text/html; charset=utf-8';
+    if (token === TEST_TOKEN) {
+      ctx.body = testPage();
+      return;
+    }
     const prospect = await strapi.db
       .query('api::prospect.prospect')
       .findOne({ where: { unsubscribe_token: token }, select: ['name', 'stage'] });
@@ -43,6 +55,11 @@ export default factories.createCoreController('api::prospect.prospect', ({ strap
   },
 
   async unsubscribe(ctx) {
+    if (String(ctx.params.token || '') === TEST_TOKEN) {
+      ctx.type = 'text/html; charset=utf-8';
+      ctx.body = testPage();
+      return;
+    }
     const prospect = await unsubscribeByToken(strapi, String(ctx.params.token || ''));
     ctx.type = 'text/html; charset=utf-8';
     if (!prospect) {

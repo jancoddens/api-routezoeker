@@ -73,10 +73,10 @@
     "postcode": {
       "type": "string"
     },
-    "walk_routes_5km": {
+    "walk_routes_15km": {
       "type": "integer"
     },
-    "bike_routes_5km": {
+    "bike_routes_15km": {
       "type": "integer"
     },
     "nearest_routes": {

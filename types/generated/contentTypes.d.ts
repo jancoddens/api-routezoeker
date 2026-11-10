@@ -2077,7 +2077,7 @@ export interface ApiProspectProspect extends Struct.CollectionTypeSchema {
   };
   attributes: {
     beds: Schema.Attribute.Integer;
-    bike_routes_5km: Schema.Attribute.Integer;
+    bike_routes_15km: Schema.Attribute.Integer;
     city: Schema.Attribute.String;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -2135,7 +2135,7 @@ export interface ApiProspectProspect extends Struct.CollectionTypeSchema {
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     vlaanderen_vakantieland_url: Schema.Attribute.String;
-    walk_routes_5km: Schema.Attribute.Integer;
+    walk_routes_15km: Schema.Attribute.Integer;
     website: Schema.Attribute.String;
   };
 }

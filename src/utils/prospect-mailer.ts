@@ -26,7 +26,7 @@ export const DEFAULT_TEMPLATE = {
 
 Ik ben Jan van Routezoeker.com, de site waar elke maand meer dan 55.000 wandelaars en fietsers een route zoeken in Vlaanderen.
 
-Binnen 5 km van {naam} in {gemeente} liggen {routes} uit onze databank{waaronder}. Wie zo'n route plant, zoekt ook een plek om te overnachten. Met een eigen partnerpagina op Routezoeker staat jullie {soort} bij al die routes in de buurt.
+Binnen 15 km van {naam} in {gemeente} liggen {routes} uit onze databank{waaronder}. Wie zo'n route plant, zoekt ook een plek om te overnachten. Met een eigen partnerpagina op Routezoeker staat jullie {soort} bij al die routes in de buurt.
 
 - Geen commissie: gasten boeken rechtstreeks via jullie
 - Een eigen pagina met 30 tot 50 routes rond jullie {soort}
@@ -62,7 +62,7 @@ Liever geen mails meer van Routezoeker? Schrijf je hier uit: {uitschrijflink}`,
 
 Ik ben Jan van Routezoeker.com, de site waar elke maand meer dan 55.000 wandelaars en fietsers een route zoeken in Vlaanderen.
 
-Binnen 5 km van {naam} in {gemeente} liggen {routes}{waaronder}. Die mensen zoeken onderweg een plek om te stoppen. Met een eigen pagina op Routezoeker verschijnt jullie {soort} bij die routes, met een link naar jullie website.
+Binnen 15 km van {naam} in {gemeente} liggen {routes}{waaronder}. Die mensen zoeken onderweg een plek om te stoppen. Met een eigen pagina op Routezoeker verschijnt jullie {soort} bij die routes, met een link naar jullie website.
 
 - Geen commissie, een vaste prijs vanaf € 39,99 per jaar
 - Zichtbaar op de routepagina's, de gemeente- en provinciepagina
@@ -113,8 +113,8 @@ export const unsubscribeUrl = (token: string) => `${apiUrl()}/api/prospects/unsu
 
 const routeSentence = (p: any) => {
   const parts: string[] = [];
-  const walks = p.walk_routes_5km || 0;
-  const bikes = p.bike_routes_5km || 0;
+  const walks = p.walk_routes_15km || 0;
+  const bikes = p.bike_routes_15km || 0;
   if (walks) parts.push(`${walks} wandelroute${walks > 1 ? 's' : ''}`);
   if (bikes) parts.push(`${bikes} fietsroute${bikes > 1 ? 's' : ''}`);
   return parts.join(' en ') || 'heel wat routes';
