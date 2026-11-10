@@ -1,5 +1,6 @@
 import type { StrapiApp } from '@strapi/strapi/admin';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { FilePdf as FileIcon } from '@strapi/icons';
 
 // Knoppen in de lijst Prospects (Content Manager): vink prospects aan en kies
 // "Verstuur eerste mail", "Verstuur opvolgmail" of "Testmail naar mij".
@@ -109,6 +110,17 @@ const TestAction = ({ documents, model }: { documents: any[]; model: string }) =
 export default {
   config: {
     locales: [],
+  },
+  register(app: StrapiApp) {
+    // Menu "Facturen": proforma's voor partnerabonnementen.
+    app.addMenuLink({
+      to: 'partner-invoices',
+      icon: FileIcon,
+      intlLabel: { id: 'partner-invoices.menu', defaultMessage: 'Facturen' },
+      permissions: [],
+      position: 3,
+      Component: () => import('./pages/Invoices'),
+    });
   },
   bootstrap(app: StrapiApp) {
     const contentManager: any = app.getPlugin('content-manager');

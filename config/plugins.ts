@@ -15,6 +15,10 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
         tls: {
           rejectUnauthorized: false,
         },
+        // Snel opgeven als de mailserver niet antwoordt, i.p.v. minutenlang hangen.
+        connectionTimeout: env.int('SMTP_CONNECTION_TIMEOUT', 10000),
+        greetingTimeout: env.int('SMTP_GREETING_TIMEOUT', 10000),
+        socketTimeout: env.int('SMTP_SOCKET_TIMEOUT', 20000),
       },
       settings: {
         defaultFrom: env('SMTP_FROM', env('SMTP_USER', 'info@routezoeker.com')),

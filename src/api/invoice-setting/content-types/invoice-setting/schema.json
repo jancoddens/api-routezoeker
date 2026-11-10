@@ -1,0 +1,38 @@
+{
+  "kind": "singleType",
+  "collectionName": "invoice_settings",
+  "info": {
+    "singularName": "invoice-setting",
+    "pluralName": "invoice-settings",
+    "displayName": "Factuurinstellingen",
+    "description": "Bedrijfsgegevens, btw en mailteksten voor de proforma's aan partners"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "company_name": { "type": "string" },
+    "company_address": { "type": "text" },
+    "company_vat": { "type": "string" },
+    "company_iban": { "type": "string" },
+    "company_bic": { "type": "string" },
+    "company_email": { "type": "string" },
+    "company_phone": { "type": "string" },
+    "company_website": { "type": "string" },
+    "vat_rate": { "type": "decimal", "default": 21 },
+    "prices_include_vat": { "type": "boolean", "default": true },
+    "vat_note": { "type": "string" },
+    "payment_term_days": { "type": "integer", "default": 30 },
+    "period_months": { "type": "integer", "default": 12 },
+    "next_number": { "type": "integer" },
+    "remind_days_before": { "type": "integer", "default": 30 },
+    "from_name": { "type": "string" },
+    "bcc_email": { "type": "string" },
+    "mail_subject": { "type": "string" },
+    "mail_body": { "type": "text" },
+    "reminder_subject": { "type": "string" },
+    "reminder_body": { "type": "text" },
+    "pdf_footer": { "type": "text" }
+  }
+}

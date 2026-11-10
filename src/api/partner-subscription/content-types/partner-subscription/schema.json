@@ -75,6 +75,15 @@
     },
     "contact_phone": {
       "type": "string"
+    },
+    "billing_name": {
+      "type": "string"
+    },
+    "billing_address": {
+      "type": "text"
+    },
+    "billing_vat": {
+      "type": "string"
     }
   }
 }

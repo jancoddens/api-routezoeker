@@ -2,6 +2,7 @@ import type { Core } from '@strapi/strapi';
 
 import { buildRouteAutofill } from './utils/gpx-autofill';
 import { ensurePartnerInviteCodes } from './utils/partner-invite';
+import { createInvoice, ensureInvoiceSetup, getOverview, renderPdf, sendInvoiceMail, updateStatus } from './utils/partner-invoicing';
 import { ensureProspectSetup, MAX_PER_BATCH, queueMails, sendTestMail, type MailKind } from './utils/prospect-mailer';
 
 export default {
@@ -44,6 +45,71 @@ export default {
         },
       ],
     } as any);
+
+    // Facturatie partnerabonnementen (menu "Facturen", zie src/admin/pages/Invoices.tsx).
+    const adminOnly = { policies: ['admin::isAuthenticatedAdmin'] };
+    const guard = (fn: (ctx: any) => Promise<any>) => async (ctx: any) => {
+      try {
+        ctx.body = await fn(ctx);
+      } catch (error: any) {
+        strapi.log.error(`Facturatie: ${error?.message}`);
+        ctx.badRequest(error?.message || 'Er ging iets mis');
+      }
+    };
+    strapi.server.routes({
+      type: 'admin',
+      prefix: '/partner-invoicing',
+      routes: [
+        { method: 'GET', path: '/overview', handler: guard(() => getOverview(strapi)), config: adminOnly },
+        {
+          method: 'POST',
+          path: '/invoices',
+          handler: guard((ctx) => {
+            const b = ctx.request.body || {};
+            if (!b.subscriptionDocumentId) throw new Error('Geen abonnement gekozen');
+            return createInvoice(strapi, {
+              subscriptionDocumentId: String(b.subscriptionDocumentId),
+              price: b.price != null && b.price !== '' ? Number(b.price) : undefined,
+              discount: b.discount != null && b.discount !== '' ? Number(b.discount) : undefined,
+              description: b.description ? String(b.description) : undefined,
+              periodStart: /^\d{4}-\d{2}-\d{2}$/.test(String(b.periodStart || '')) ? String(b.periodStart) : undefined,
+              renew: b.renew !== false,
+            });
+          }),
+          config: adminOnly,
+        },
+        {
+          method: 'GET',
+          path: '/invoices/:id/pdf',
+          handler: guard(async (ctx) => {
+            const { buffer, filename } = await renderPdf(strapi, Number(ctx.params.id));
+            return { filename, base64: buffer.toString('base64') };
+          }),
+          config: adminOnly,
+        },
+        {
+          method: 'POST',
+          path: '/invoices/:id/send',
+          handler: guard((ctx) => {
+            const b = ctx.request.body || {};
+            const kind = b.kind === 'reminder' ? 'reminder' : 'invoice';
+            if (b.test) {
+              const me = ctx.state?.user?.email;
+              if (!me) throw new Error('Geen e-mailadres voor jouw account');
+              return sendInvoiceMail(strapi, Number(ctx.params.id), { kind, testTo: me });
+            }
+            return sendInvoiceMail(strapi, Number(ctx.params.id), { kind, to: b.to ? String(b.to).trim() : undefined });
+          }),
+          config: adminOnly,
+        },
+        {
+          method: 'POST',
+          path: '/invoices/:id/status',
+          handler: guard((ctx) => updateStatus(strapi, Number(ctx.params.id), ctx.request.body || {})),
+          config: adminOnly,
+        },
+      ],
+    } as any);
   },
 
   /**
@@ -59,6 +125,7 @@ export default {
     await ensureReviewPermissions(strapi);
     await ensurePartnerInviteCodes(strapi);
     await ensureProspectSetup(strapi);
+    await ensureInvoiceSetup(strapi);
 
     const autofillUpdatesInFlight = new Set<number>();
 

@@ -1058,6 +1058,60 @@ export interface ApiFavoriteRouteFavoriteRoute
   };
 }
 
+export interface ApiInvoiceSettingInvoiceSetting
+  extends Struct.SingleTypeSchema {
+  collectionName: 'invoice_settings';
+  info: {
+    description: "Bedrijfsgegevens, btw en mailteksten voor de proforma's aan partners";
+    displayName: 'Factuurinstellingen';
+    pluralName: 'invoice-settings';
+    singularName: 'invoice-setting';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    bcc_email: Schema.Attribute.String;
+    company_address: Schema.Attribute.Text;
+    company_bic: Schema.Attribute.String;
+    company_email: Schema.Attribute.String;
+    company_iban: Schema.Attribute.String;
+    company_name: Schema.Attribute.String;
+    company_phone: Schema.Attribute.String;
+    company_vat: Schema.Attribute.String;
+    company_website: Schema.Attribute.String;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    from_name: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::invoice-setting.invoice-setting'
+    > &
+      Schema.Attribute.Private;
+    mail_body: Schema.Attribute.Text;
+    mail_subject: Schema.Attribute.String;
+    next_number: Schema.Attribute.Integer;
+    payment_term_days: Schema.Attribute.Integer &
+      Schema.Attribute.DefaultTo<30>;
+    pdf_footer: Schema.Attribute.Text;
+    period_months: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<12>;
+    prices_include_vat: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<true>;
+    publishedAt: Schema.Attribute.DateTime;
+    remind_days_before: Schema.Attribute.Integer &
+      Schema.Attribute.DefaultTo<30>;
+    reminder_body: Schema.Attribute.Text;
+    reminder_subject: Schema.Attribute.String;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    vat_note: Schema.Attribute.String;
+    vat_rate: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<21>;
+  };
+}
+
 export interface ApiLocationThemePageLocationThemePage
   extends Struct.CollectionTypeSchema {
   collectionName: 'location_theme_pages';
@@ -1538,6 +1592,72 @@ export interface ApiPagePage extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiPartnerInvoicePartnerInvoice
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'partner_invoices';
+  info: {
+    description: "Proforma's voor partnerabonnementen. De offici\u00EBle factuur maak je in Octopus.";
+    displayName: 'Partner_invoice';
+    pluralName: 'partner-invoices';
+    singularName: 'partner-invoice';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    billing_address: Schema.Attribute.Text;
+    billing_email: Schema.Attribute.String;
+    billing_name: Schema.Attribute.String;
+    billing_vat: Schema.Attribute.String;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
+    discount: Schema.Attribute.Integer;
+    due_date: Schema.Attribute.Date;
+    history: Schema.Attribute.Text;
+    invoice_date: Schema.Attribute.Date;
+    last_reminder_at: Schema.Attribute.DateTime;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::partner-invoice.partner-invoice'
+    > &
+      Schema.Attribute.Private;
+    notes: Schema.Attribute.Text;
+    number: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    octopus_number: Schema.Attribute.String;
+    package: Schema.Attribute.String;
+    paid_at: Schema.Attribute.Date;
+    partner_document_id: Schema.Attribute.String;
+    partner_name: Schema.Attribute.String;
+    period_end: Schema.Attribute.Date;
+    period_start: Schema.Attribute.Date;
+    price: Schema.Attribute.Decimal;
+    publishedAt: Schema.Attribute.DateTime;
+    reminder_count: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    renewed_subscription: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    sent_at: Schema.Attribute.DateTime;
+    sent_to: Schema.Attribute.String;
+    status_invoice: Schema.Attribute.Enumeration<
+      ['concept', 'verstuurd', 'betaald', 'geannuleerd']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'concept'>;
+    subscription_document_id: Schema.Attribute.String;
+    total_excl: Schema.Attribute.Decimal;
+    total_incl: Schema.Attribute.Decimal;
+    total_vat: Schema.Attribute.Decimal;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    vat_rate: Schema.Attribute.Decimal;
+  };
+}
+
 export interface ApiPartnerSubscriptionPartnerSubscription
   extends Struct.CollectionTypeSchema {
   collectionName: 'partner_subscriptions';
@@ -1550,6 +1670,9 @@ export interface ApiPartnerSubscriptionPartnerSubscription
     draftAndPublish: true;
   };
   attributes: {
+    billing_address: Schema.Attribute.Text;
+    billing_name: Schema.Attribute.String;
+    billing_vat: Schema.Attribute.String;
     contact_email: Schema.Attribute.String;
     contact_phone: Schema.Attribute.String;
     createdAt: Schema.Attribute.DateTime;
@@ -3206,6 +3329,7 @@ declare module '@strapi/strapi' {
       'api::faq.faq': ApiFaqFaq;
       'api::favorite-logie.favorite-logie': ApiFavoriteLogieFavoriteLogie;
       'api::favorite-route.favorite-route': ApiFavoriteRouteFavoriteRoute;
+      'api::invoice-setting.invoice-setting': ApiInvoiceSettingInvoiceSetting;
       'api::location-theme-page.location-theme-page': ApiLocationThemePageLocationThemePage;
       'api::newsletter-subscription.newsletter-subscription': ApiNewsletterSubscriptionNewsletterSubscription;
       'api::node-connection.node-connection': ApiNodeConnectionNodeConnection;
@@ -3213,6 +3337,7 @@ declare module '@strapi/strapi' {
       'api::node.node': ApiNodeNode;
       'api::notification.notification': ApiNotificationNotification;
       'api::page.page': ApiPagePage;
+      'api::partner-invoice.partner-invoice': ApiPartnerInvoicePartnerInvoice;
       'api::partner-subscription.partner-subscription': ApiPartnerSubscriptionPartnerSubscription;
       'api::partner.partner': ApiPartnerPartner;
       'api::planned-route.planned-route': ApiPlannedRoutePlannedRoute;

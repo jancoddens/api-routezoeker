@@ -1,0 +1,113 @@
+{
+  "kind": "collectionType",
+  "collectionName": "partner_invoices",
+  "info": {
+    "singularName": "partner-invoice",
+    "pluralName": "partner-invoices",
+    "displayName": "Partner_invoice",
+    "description": "Proforma's voor partnerabonnementen. De officiële factuur maak je in Octopus."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "number": {
+      "type": "integer",
+      "required": true,
+      "unique": true
+    },
+    "status_invoice": {
+      "type": "enumeration",
+      "enum": ["concept", "verstuurd", "betaald", "geannuleerd"],
+      "default": "concept",
+      "required": true
+    },
+    "partner_name": {
+      "type": "string"
+    },
+    "partner_document_id": {
+      "type": "string"
+    },
+    "subscription_document_id": {
+      "type": "string"
+    },
+    "invoice_date": {
+      "type": "date"
+    },
+    "due_date": {
+      "type": "date"
+    },
+    "period_start": {
+      "type": "date"
+    },
+    "period_end": {
+      "type": "date"
+    },
+    "package": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "price": {
+      "type": "decimal"
+    },
+    "discount": {
+      "type": "integer"
+    },
+    "vat_rate": {
+      "type": "decimal"
+    },
+    "total_excl": {
+      "type": "decimal"
+    },
+    "total_vat": {
+      "type": "decimal"
+    },
+    "total_incl": {
+      "type": "decimal"
+    },
+    "billing_name": {
+      "type": "string"
+    },
+    "billing_address": {
+      "type": "text"
+    },
+    "billing_vat": {
+      "type": "string"
+    },
+    "billing_email": {
+      "type": "string"
+    },
+    "sent_at": {
+      "type": "datetime"
+    },
+    "sent_to": {
+      "type": "string"
+    },
+    "reminder_count": {
+      "type": "integer",
+      "default": 0
+    },
+    "last_reminder_at": {
+      "type": "datetime"
+    },
+    "paid_at": {
+      "type": "date"
+    },
+    "octopus_number": {
+      "type": "string"
+    },
+    "renewed_subscription": {
+      "type": "boolean",
+      "default": false
+    },
+    "notes": {
+      "type": "text"
+    },
+    "history": {
+      "type": "text"
+    }
+  }
+}
