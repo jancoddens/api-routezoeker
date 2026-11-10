@@ -273,6 +273,21 @@ const periodStart = (reference) => {
 
 const day = (value) => (value ? String(value).slice(0, 10) : null);
 
+/** Laatste verjaardag van `anchor` die niet later valt dan factuurdatum + 60 dagen. */
+const snapToAnniversary = (anchor, invoiceDate) => {
+  if (!invoiceDate) return null;
+  if (!anchor) return invoiceDate;
+  const [, m, d] = anchor.split('-').map(Number);
+  const limit = new Date(`${invoiceDate}T00:00:00Z`);
+  limit.setUTCDate(limit.getUTCDate() + 60);
+  for (let y = limit.getUTCFullYear(); y >= limit.getUTCFullYear() - 2; y -= 1) {
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const candidate = new Date(Date.UTC(y, m - 1, Math.min(d, lastDay)));
+    if (candidate <= limit) return candidate.toISOString().slice(0, 10);
+  }
+  return invoiceDate;
+};
+
 // ---------- hoofdprogramma ----------
 
 const run = async () => {
@@ -376,27 +391,50 @@ const run = async () => {
 
       const last = customer.orders[customer.orders.length - 1];
       const first = customer.orders[0];
-      const runDate = (o) => periodStart(o.reference) || day(o.date);
-      const values = {
+      // Rundatum van een factuur: de start van de periode ("Periode 19-07-2026
+      // tot ..."). Zonder periode: de verjaardag van het abonnement die bij de
+      // factuurdatum hoort (factuur tot 60 dagen vóór de verjaardag telt mee).
+      const anchor = day(main.first_run) || day(main.start_date) || periodStart(first.reference) || day(first.date);
+      const runDate = (o) => periodStart(o.reference) || snapToAnniversary(anchor, day(o.date));
+      const runs = [...new Set(customer.orders.map(runDate).filter(Boolean))].sort();
+      const ordersLastRun = runs[runs.length - 1];
+
+      const billing = {
         billing_name: last.bedrijf || last.naam || null,
         billing_address: [String(last.adres || '').trim(), [last.postcode, last.gemeente].map((v) => String(v || '').trim()).filter(Boolean).join(' ')]
           .filter(Boolean)
           .join('\n') || null,
         billing_vat: String(last.btw || '').trim() || null,
         contact_email: last.email || null,
-        first_run: runDate(first),
-        last_run: customer.orders.map(runDate).sort().pop(),
-        run_count: customer.orders.length,
-        last_invoice: String(last.number || '') || null,
       };
 
       const data = {};
-      for (const [field, value] of Object.entries(values)) {
+      for (const [field, value] of Object.entries(billing)) {
         if (value == null || value === '') continue;
         const current = main[field];
-        const isEmpty = current == null || current === '' || (field === 'run_count' && !current);
+        const isEmpty = current == null || current === '';
         if (options.overwrite ? String(current ?? '') !== String(value) : isEmpty) data[field] = value;
       }
+
+      // Runs: nooit terug in de tijd. Leeg → alles invullen; staat er al een
+      // oudere last run → bijwerken met de nieuwere facturen.
+      const currentLast = day(main.last_run);
+      if (!currentLast || options.overwrite) {
+        Object.assign(data, {
+          first_run: day(main.first_run) && !options.overwrite ? day(main.first_run) : runs[0],
+          last_run: ordersLastRun,
+          run_count: runs.length,
+          last_invoice: String(last.number || '') || null,
+        });
+        if (day(main.first_run) === data.first_run) delete data.first_run;
+      } else if (ordersLastRun && ordersLastRun > currentLast) {
+        Object.assign(data, {
+          last_run: ordersLastRun,
+          run_count: (main.run_count || 0) + runs.filter((r) => r > currentLast).length,
+          last_invoice: String(last.number || '') || null,
+        });
+      }
+      for (const key of Object.keys(data)) if (data[key] == null) delete data[key];
 
       const line = `${label} ← "${customer.label}" (${customer.orders.length} factuur/facturen, laatste ${day(last.date)})`;
       if (!Object.keys(data).length) {
