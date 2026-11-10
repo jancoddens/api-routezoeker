@@ -21,7 +21,7 @@
     "company_phone": { "type": "string" },
     "company_website": { "type": "string" },
     "vat_rate": { "type": "decimal", "default": 21 },
-    "prices_include_vat": { "type": "boolean", "default": true },
+    "prices_include_vat": { "type": "boolean", "default": false },
     "vat_note": { "type": "string" },
     "payment_term_days": { "type": "integer", "default": 30 },
     "period_months": { "type": "integer", "default": 12 },

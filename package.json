@@ -25,7 +25,8 @@
     "upgrade:dry": "npx @strapi/upgrade latest --dry",
     "import:legacy-partner-stats": "node scripts/import-legacy-partner-stats.js",
     "import:prospects": "node scripts/import-prospects.js",
-    "import:legacy-orders": "node scripts/import-legacy-orders.js"
+    "import:legacy-orders": "node scripts/import-legacy-orders.js",
+    "import:legacy-proformas": "node scripts/import-legacy-proformas.js"
   },
   "dependencies": {
     "@strapi/plugin-cloud": "5.60.0",

@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS = {
   company_phone: '',
   company_website: 'www.routezoeker.com',
   vat_rate: 21,
-  prices_include_vat: true,
+  prices_include_vat: false,
   vat_note: '',
   payment_term_days: 30,
   period_months: 12,
@@ -133,6 +133,31 @@ export const ensureInvoiceSetup = async (strapi: Core.Strapi) => {
   }
 };
 
+// ---------- regels ----------
+
+/**
+ * Een proforma kan meerdere regels hebben (bv. één proforma voor twee logies
+ * van dezelfde uitbater). `lines` = [{ subscription_document_id, description,
+ * price, discount, vat_rate, amount_excl }], prijzen excl. btw. Zonder `lines`
+ * is het een proforma met één regel (de velden op de proforma zelf).
+ */
+const invoiceLines = (invoice: any): any[] => {
+  const raw = typeof invoice?.lines === 'string' ? safeJson(invoice.lines) : invoice?.lines;
+  return Array.isArray(raw) ? raw : [];
+};
+
+const safeJson = (value: string) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+/** Alle abonnementen waarop een proforma betrekking heeft. */
+export const invoiceSubscriptions = (invoice: any): string[] =>
+  [...new Set([invoice.subscription_document_id, ...invoiceLines(invoice).map((l) => l.subscription_document_id)].filter(Boolean))] as string[];
+
 // ---------- overzicht ----------
 
 const formatAddress = (a: any) => {
@@ -153,7 +178,7 @@ export const getOverview = async (strapi: Core.Strapi) => {
 
   const horizon = addDays(today(), settings.remind_days_before || 30);
   const rows = subs.map((s: any) => {
-    const subInvoices = invoices.filter((i: any) => i.subscription_document_id === s.documentId);
+    const subInvoices = invoices.filter((i: any) => invoiceSubscriptions(i).includes(s.documentId));
     const latest = subInvoices[0] || null;
     const nextRun = s.last_run
       ? addMonths(String(s.last_run), settings.period_months || 12)
@@ -162,8 +187,9 @@ export const getOverview = async (strapi: Core.Strapi) => {
     // Gratis partners krijgen geen proforma.
     const isActive = s.status_subscription === 'active' && s.package !== 'Free';
     // Al een proforma (open of betaald) voor de volgende periode? Dan niet meer "te factureren".
+    const lastRun = s.last_run ? String(s.last_run).slice(0, 10) : '';
     const pending = subInvoices.find(
-      (i: any) => i.status_invoice !== 'geannuleerd' && nextRun && String(i.period_start) === String(nextRun),
+      (i: any) => ['concept', 'verstuurd'].includes(i.status_invoice) && String(i.period_start).slice(0, 10) > lastRun,
     );
     const due = Boolean(isActive && nextRun && String(nextRun) <= horizon && !pending);
     return {
@@ -236,7 +262,16 @@ export const getOverview = async (strapi: Core.Strapi) => {
 
 const nextNumber = async (strapi: Core.Strapi, settings: any) => {
   const last = await strapi.db.query(INVOICE).findOne({ orderBy: { number: 'desc' }, select: ['number'] });
-  return Math.max((last?.number || 0) + 1, Number(settings.next_number) || 1);
+  const lastNumber = Number(last?.number) || 0;
+  const start = Number(settings.next_number) || 1;
+  // Nummering zoals in het oude systeem: JJJJMMDD + volgnummer van 4 cijfers
+  // (bv. 202611100220). Het volgnummer loopt door, de datum is die van vandaag.
+  if (String(Math.max(lastNumber, start)).length === 12) {
+    const seq = Math.max(lastNumber ? (lastNumber % 10000) + 1 : 0, start >= 1e11 ? start % 10000 : 0, 1);
+    const ymd = today().replace(/-/g, '');
+    return Number(`${ymd}${String(seq % 10000).padStart(4, '0')}`);
+  }
+  return Math.max(lastNumber + 1, start);
 };
 
 const stamp = (line: string) => `${new Date().toISOString().slice(0, 16).replace('T', ' ')} ${line}`;
@@ -325,8 +360,10 @@ export const updateStatus = async (
     data.status_invoice = 'betaald';
     data.paid_at = body.paidAt || today();
     line = `Betaald op ${nlDate(data.paid_at)}`;
-    if (!invoice.renewed_subscription && (await applyRenewal(strapi, invoice))) {
+    const snapshot = invoice.renewed_subscription ? null : await applyRenewal(strapi, invoice);
+    if (snapshot) {
       data.renewed_subscription = true;
+      data.renewal_snapshot = snapshot;
       line += ' (abonnement verlengd)';
     }
   } else if (body.status === 'geannuleerd') {
@@ -335,6 +372,7 @@ export const updateStatus = async (
     if (invoice.renewed_subscription) {
       await undoRenewal(strapi, invoice);
       data.renewed_subscription = false;
+      data.renewal_snapshot = null;
     }
   } else if (body.status === 'verstuurd' || body.status === 'concept') {
     data.status_invoice = body.status;
@@ -343,6 +381,7 @@ export const updateStatus = async (
     if (invoice.renewed_subscription) {
       await undoRenewal(strapi, invoice);
       data.renewed_subscription = false;
+      data.renewal_snapshot = null;
       line += ' (verlenging teruggedraaid)';
     }
   }
@@ -355,12 +394,20 @@ export const updateStatus = async (
   return strapi.db.query(INVOICE).update({ where: { id }, data });
 };
 
-/** Bij betaling: last run = start van de betaalde periode (nooit terug in de tijd), count +1. */
+/** Bij betaling: last run = start van de betaalde periode (nooit terug in de tijd), count +1. Geeft de vorige waarden terug. */
 const applyRenewal = async (strapi: Core.Strapi, invoice: any) => {
-  if (!invoice.subscription_document_id || !invoice.period_start) return false;
-  const rows = await strapi.db.query(SUB).findMany({ where: { documentId: invoice.subscription_document_id } });
-  if (!rows.length) return false;
+  const subs = invoiceSubscriptions(invoice);
+  if (!subs.length || !invoice.period_start) return null;
+  const rows = await strapi.db.query(SUB).findMany({ where: { documentId: { $in: subs } } });
+  if (!rows.length) return null;
+  const snapshot: Record<string, any> = {};
   for (const row of rows) {
+    snapshot[row.documentId] = snapshot[row.documentId] || {
+      first_run: row.first_run || null,
+      last_run: row.last_run || null,
+      run_count: row.run_count || 0,
+      last_invoice: row.last_invoice || null,
+    };
     const start = String(invoice.period_start).slice(0, 10);
     const current = row.last_run ? String(row.last_run).slice(0, 10) : '';
     await strapi.db.query(SUB).update({
@@ -373,13 +420,21 @@ const applyRenewal = async (strapi: Core.Strapi, invoice: any) => {
       },
     });
   }
-  return true;
+  return snapshot;
 };
 
 /** Bij annuleren of terugzetten: het abonnement terugzetten naar de vorige run. */
 const undoRenewal = async (strapi: Core.Strapi, invoice: any) => {
   const settings = await getSettings(strapi);
-  const rows = await strapi.db.query(SUB).findMany({ where: { documentId: invoice.subscription_document_id } });
+  const snapshot = typeof invoice.renewal_snapshot === 'string' ? safeJson(invoice.renewal_snapshot) : invoice.renewal_snapshot;
+  if (snapshot && typeof snapshot === 'object' && Object.keys(snapshot).length) {
+    // Exact terugzetten naar de waarden van vóór de betaling.
+    for (const [documentId, previous] of Object.entries<any>(snapshot)) {
+      await strapi.db.query(SUB).updateMany({ where: { documentId }, data: previous });
+    }
+    return;
+  }
+  const rows = await strapi.db.query(SUB).findMany({ where: { documentId: { $in: invoiceSubscriptions(invoice) } } });
   for (const row of rows) {
     if (String(row.last_run).slice(0, 10) !== String(invoice.period_start).slice(0, 10)) {
       // Last run was niet door deze proforma verschoven: enkel de teller terugzetten.
@@ -388,7 +443,7 @@ const undoRenewal = async (strapi: Core.Strapi, invoice: any) => {
     }
     const previous = await strapi.db.query(INVOICE).findOne({
       where: {
-        subscription_document_id: invoice.subscription_document_id,
+        subscription_document_id: row.documentId,
         id: { $ne: invoice.id },
         renewed_subscription: true,
         status_invoice: { $ne: 'geannuleerd' },
@@ -472,18 +527,31 @@ export const renderPdf = async (strapi: Core.Strapi, id: number) => {
   doc.text('Bedrag', right - 108, y + 7, { width: 100, align: 'right' });
   y += 30;
   doc.font('Helvetica').fontSize(10);
-  const descHeight = doc.heightOfString(invoice.description || '', { width: 340 });
-  doc.text(invoice.description || '', left + 8, y, { width: 340 });
-  const listPrice = s.prices_include_vat
-    ? Number(invoice.price) / (1 + Number(invoice.vat_rate) / 100)
-    : Number(invoice.price);
-  doc.text(money(round2(listPrice)), right - 108, y, { width: 100, align: 'right' });
-  y += Math.max(descHeight, 14) + 6;
-  if (invoice.discount) {
-    doc.fillColor(grey).text(`Korting ${invoice.discount}%`, left + 8, y, { width: 340 });
-    doc.text(`– ${money(round2(listPrice - Number(invoice.total_excl)))}`, right - 108, y, { width: 100, align: 'right' });
-    doc.fillColor('#000');
-    y += 20;
+  const lines = invoiceLines(invoice);
+  const rows: { description: string; price: number; discount: number; amount: number }[] = lines.length
+    ? lines.map((l) => ({
+        description: l.description || '',
+        price: Number(l.price) || 0,
+        discount: Number(l.discount) || 0,
+        amount: Number(l.amount_excl ?? (Number(l.price) || 0) * (1 - (Number(l.discount) || 0) / 100)),
+      }))
+    : [
+        (() => {
+          const price = s.prices_include_vat ? Number(invoice.price) / (1 + Number(invoice.vat_rate) / 100) : Number(invoice.price);
+          return { description: invoice.description || '', price, discount: Number(invoice.discount) || 0, amount: Number(invoice.total_excl) };
+        })(),
+      ];
+  for (const row of rows) {
+    const descHeight = doc.heightOfString(row.description, { width: 340 });
+    doc.fillColor('#000').text(row.description, left + 8, y, { width: 340 });
+    doc.text(money(round2(row.price)), right - 108, y, { width: 100, align: 'right' });
+    y += Math.max(descHeight, 14) + 6;
+    if (row.discount) {
+      doc.fillColor(grey).text(`Korting ${row.discount}%`, left + 8, y, { width: 340 });
+      doc.text(`– ${money(round2(row.price - row.amount))}`, right - 108, y, { width: 100, align: 'right' });
+      doc.fillColor('#000');
+      y += 20;
+    }
   }
   doc.moveTo(left, y + 4).lineTo(right, y + 4).strokeColor('#dddddd').stroke();
   y += 14;

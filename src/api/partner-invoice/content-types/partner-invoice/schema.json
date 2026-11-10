@@ -103,6 +103,12 @@
       "type": "boolean",
       "default": false
     },
+    "lines": {
+      "type": "json"
+    },
+    "renewal_snapshot": {
+      "type": "json"
+    },
     "notes": {
       "type": "text"
     },
