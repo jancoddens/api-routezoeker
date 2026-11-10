@@ -16,6 +16,7 @@
     "company_address": { "type": "text" },
     "company_vat": { "type": "string" },
     "company_iban": { "type": "string" },
+    "account_holder": { "type": "string" },
     "company_bic": { "type": "string" },
     "company_email": { "type": "string" },
     "company_phone": { "type": "string" },

@@ -19,6 +19,9 @@ export const DEFAULT_SETTINGS = {
   company_address: '',
   company_vat: '',
   company_iban: '',
+  // Naam van de rekeninghouder (bv. de onderneming achter Routezoeker). Banken
+  // controleren sinds oktober 2025 of naam en IBAN overeenkomen.
+  account_holder: '',
   company_bic: '',
   company_email: 'info@routezoeker.com',
   company_phone: '',
@@ -485,7 +488,9 @@ export const renderPdf = async (strapi: Core.Strapi, id: number) => {
   doc.font('Helvetica').fontSize(10).fillColor(grey).text(`Nr. ${invoice.number}`, left, 74, { width: right - left, align: 'right' });
 
   // Verkoper
+  const holder = String(s.account_holder || '').trim();
   const seller = [
+    holder && holder !== s.company_name ? holder : '',
     s.company_address,
     s.company_vat && `Btw: ${s.company_vat}`,
     s.company_email,
@@ -575,7 +580,7 @@ export const renderPdf = async (strapi: Core.Strapi, id: number) => {
   doc.rect(left, y, right - left, 74).fill('#f7f7f7');
   doc.fillColor('#000').font('Helvetica-Bold').fontSize(10).text('Betaling', left + 12, y + 10);
   doc.font('Helvetica').fontSize(9.5).text(
-    `Gelieve ${money(invoice.total_incl)} vóór ${nlDate(invoice.due_date)} over te schrijven op ${s.company_iban || '[IBAN invullen in Factuurinstellingen]'}${s.company_bic ? ` (BIC ${s.company_bic})` : ''} met de gestructureerde mededeling:`,
+    `Gelieve ${money(invoice.total_incl)} vóór ${nlDate(invoice.due_date)} over te schrijven op ${s.company_iban || '[IBAN invullen in Factuurinstellingen]'}${holder ? ` ten name van ${holder}` : ''}${s.company_bic ? ` (BIC ${s.company_bic})` : ''} met de gestructureerde mededeling:`,
     left + 12,
     y + 25,
     { width: right - left - 24, lineGap: 1.5 },
@@ -625,7 +630,8 @@ const fillTemplate = (template: string, invoice: any, s: any, page = '') => {
     periode: `${nlDate(invoice.period_start)} tot ${nlDate(invoice.period_end)}`,
     bedrag: money(invoice.total_incl),
     vervaldatum: nlDate(invoice.due_date),
-    iban: s.company_iban || '[IBAN]',
+    iban: `${s.company_iban || '[IBAN]'}${s.account_holder ? ` ten name van ${String(s.account_holder).trim()}` : ''}`,
+    begunstigde: String(s.account_holder || s.company_name || '').trim(),
     mededeling: structuredReference(invoice.number),
   };
   return template.replace(/\{(\w+)\}/g, (match, name) => (name in values ? values[name] : match));
