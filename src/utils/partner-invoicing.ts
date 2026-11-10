@@ -10,6 +10,7 @@ const SUB = 'api::partner-subscription.partner-subscription';
 const INVOICE = 'api::partner-invoice.partner-invoice';
 const SETTINGS = 'api::invoice-setting.invoice-setting';
 
+const siteUrl = () => (process.env.FRONTEND_URL || 'https://www.routezoeker.com').replace(/\/+$/, '');
 const fromAddress = () => process.env.SMTP_FROM || process.env.SMTP_USER || 'info@routezoeker.com';
 const replyTo = () => process.env.SMTP_REPLY_TO || 'info@routezoeker.com';
 
@@ -33,7 +34,10 @@ export const DEFAULT_SETTINGS = {
   mail_subject: 'Proforma {nummer} – je partnerpagina op Routezoeker',
   mail_body: `Dag,
 
-Bedankt om partner te zijn van Routezoeker. In bijlage vind je de proforma {nummer} voor {pakket} van {naam}, voor de periode {periode}.
+In bijlage vind je de proforma {nummer} voor de jaarlijkse advertentie van {naam} op Routezoeker.com, voor de periode {periode}.
+
+Hier kan je nogmaals je advertentiepagina zien: {pagina}
+Wil je graag nieuwe of extra foto's, of wijzigingen in de tekst? Laat het maar weten.
 
 Te betalen: {bedrag}
 Gelieve dit bedrag vóór {vervaldatum} over te schrijven op {iban} met vermelding "{mededeling}".
@@ -119,6 +123,11 @@ export const ensureInvoiceSetup = async (strapi: Core.Strapi) => {
   try {
     const stored = await strapi.documents(SETTINGS as any).findFirst({});
     if (!stored) await strapi.documents(SETTINGS as any).create({ data: DEFAULT_SETTINGS as any });
+    // Oude standaardtekst (zonder link naar de advertentiepagina) vervangen door de nieuwe,
+    // maar enkel als je ze zelf nog niet aangepast had.
+    else if (String(stored.mail_body || '').includes('Bedankt om partner te zijn van Routezoeker. In bijlage vind je de proforma {nummer} voor {pakket}')) {
+      await strapi.documents(SETTINGS as any).update({ documentId: stored.documentId, data: { mail_body: DEFAULT_SETTINGS.mail_body } as any });
+    }
   } catch (error: any) {
     strapi.log.error(`Factuurinstellingen aanmaken mislukt: ${error?.message}`);
   }
@@ -525,8 +534,23 @@ const textToHtml = (text: string) =>
     .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
     .replace(/\n/g, '<br>')}</div>`;
 
-const fillTemplate = (template: string, invoice: any, s: any) => {
+/** Link naar de partnerpagina op de site (/logies/<slug>), Nederlandstalige versie bij voorkeur. */
+const partnerPageUrl = async (strapi: Core.Strapi, invoice: any) => {
+  if (!invoice.partner_document_id) return '';
+  const rows = await strapi.db
+    .query('api::partner.partner')
+    .findMany({ where: { documentId: invoice.partner_document_id }, select: ['slug', 'locale', 'publishedAt'] });
+  const pick =
+    rows.find((r: any) => r.publishedAt && r.locale === 'nl') ||
+    rows.find((r: any) => r.publishedAt) ||
+    rows.find((r: any) => r.locale === 'nl') ||
+    rows[0];
+  return pick?.slug ? `${siteUrl()}/logies/${pick.slug}` : '';
+};
+
+const fillTemplate = (template: string, invoice: any, s: any, page = '') => {
   const values: Record<string, string> = {
+    pagina: page || siteUrl(),
     nummer: String(invoice.number),
     naam: invoice.partner_name || '',
     pakket: invoice.package ? `het pakket ${invoice.package}` : 'je partnerpagina',
@@ -554,8 +578,9 @@ export const sendInvoiceMail = async (
 
   const subjectTpl = opts.kind === 'reminder' ? s.reminder_subject : s.mail_subject;
   const bodyTpl = opts.kind === 'reminder' ? s.reminder_body : s.mail_body;
-  const subject = (opts.testTo ? '[TEST] ' : '') + fillTemplate(subjectTpl, invoice, s);
-  const text = fillTemplate(bodyTpl, invoice, s);
+  const page = await partnerPageUrl(strapi, invoice);
+  const subject = (opts.testTo ? '[TEST] ' : '') + fillTemplate(subjectTpl, invoice, s, page);
+  const text = fillTemplate(bodyTpl, invoice, s, page);
 
   await strapi.plugin('email').service('email').send({
     to,
