@@ -150,7 +150,8 @@ export const getOverview = async (strapi: Core.Strapi) => {
       ? addMonths(String(s.last_run), settings.period_months || 12)
       : s.first_run || s.start_date || null;
     const open = subInvoices.filter((i: any) => ['concept', 'verstuurd'].includes(i.status_invoice));
-    const isActive = s.status_subscription === 'active';
+    // Gratis partners krijgen geen proforma.
+    const isActive = s.status_subscription === 'active' && s.package !== 'Free';
     const due = Boolean(isActive && nextRun && String(nextRun) <= horizon);
     return {
       documentId: s.documentId,
