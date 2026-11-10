@@ -152,7 +152,11 @@ export const getOverview = async (strapi: Core.Strapi) => {
     const open = subInvoices.filter((i: any) => ['concept', 'verstuurd'].includes(i.status_invoice));
     // Gratis partners krijgen geen proforma.
     const isActive = s.status_subscription === 'active' && s.package !== 'Free';
-    const due = Boolean(isActive && nextRun && String(nextRun) <= horizon);
+    // Al een proforma (open of betaald) voor de volgende periode? Dan niet meer "te factureren".
+    const pending = subInvoices.find(
+      (i: any) => i.status_invoice !== 'geannuleerd' && nextRun && String(i.period_start) === String(nextRun),
+    );
+    const due = Boolean(isActive && nextRun && String(nextRun) <= horizon && !pending);
     return {
       documentId: s.documentId,
       id: s.id,
@@ -172,7 +176,8 @@ export const getOverview = async (strapi: Core.Strapi) => {
       billingVat: s.billing_vat || '',
       notes: s.notes || '',
       due,
-      overdue: Boolean(isActive && nextRun && String(nextRun) < today()),
+      overdue: Boolean(isActive && nextRun && String(nextRun) < today() && !pending),
+      pendingInvoice: pending ? { id: pending.id, number: pending.number, status: pending.status_invoice } : null,
       openInvoices: open.length,
       latestInvoice: latest && {
         id: latest.id,
@@ -234,7 +239,6 @@ export type CreateInput = {
   discount?: number;
   description?: string;
   periodStart?: string;
-  renew?: boolean;
 };
 
 export const createInvoice = async (strapi: Core.Strapi, input: CreateInput) => {
@@ -249,18 +253,15 @@ export const createInvoice = async (strapi: Core.Strapi, input: CreateInput) => 
   const price = input.price ?? sub.price;
   if (price == null || Number.isNaN(Number(price))) throw new Error('Geen prijs ingevuld voor dit abonnement');
   const discount = input.discount ?? sub.discount ?? 0;
-  const renew = input.renew !== false;
 
-  if (renew) {
-    const existing = await strapi.db.query(INVOICE).findOne({
-      where: {
-        subscription_document_id: sub.documentId,
-        period_start: periodStart,
-        status_invoice: { $ne: 'geannuleerd' },
-      },
-    });
-    if (existing) throw new Error(`Er bestaat al proforma ${existing.number} voor deze periode`);
-  }
+  const existing = await strapi.db.query(INVOICE).findOne({
+    where: {
+      subscription_document_id: sub.documentId,
+      period_start: periodStart,
+      status_invoice: { $ne: 'geannuleerd' },
+    },
+  });
+  if (existing) throw new Error(`Er bestaat al proforma ${existing.number} voor deze periode`);
 
   const vatRate = Number(settings.vat_rate);
   const totals = computeTotals(Number(price), Number(discount), vatRate, Boolean(settings.prices_include_vat));
@@ -291,26 +292,12 @@ export const createInvoice = async (strapi: Core.Strapi, input: CreateInput) => 
       billing_vat: sub.billingVat,
       billing_email: sub.email,
       reminder_count: 0,
-      renewed_subscription: renew,
-      history: stamp(`Proforma aangemaakt${renew ? ' (abonnement verlengd)' : ''}`),
+      // Het abonnement wordt pas verlengd als de proforma betaald is (zie updateStatus).
+      renewed_subscription: false,
+      history: stamp('Proforma aangemaakt'),
     } as any,
   });
 
-  if (renew) {
-    // Beide versies (draft + gepubliceerd) van het abonnement bijwerken.
-    const rows = await strapi.db.query(SUB).findMany({ where: { documentId: sub.documentId } });
-    for (const row of rows) {
-      await strapi.db.query(SUB).update({
-        where: { id: row.id },
-        data: {
-          first_run: row.first_run || periodStart,
-          last_run: periodStart,
-          run_count: (row.run_count || 0) + 1,
-          last_invoice: String(number),
-        },
-      });
-    }
-  }
   return invoice;
 };
 
@@ -329,14 +316,26 @@ export const updateStatus = async (
     data.status_invoice = 'betaald';
     data.paid_at = body.paidAt || today();
     line = `Betaald op ${nlDate(data.paid_at)}`;
+    if (!invoice.renewed_subscription && (await applyRenewal(strapi, invoice))) {
+      data.renewed_subscription = true;
+      line += ' (abonnement verlengd)';
+    }
   } else if (body.status === 'geannuleerd') {
     data.status_invoice = 'geannuleerd';
     line = 'Geannuleerd';
-    if (invoice.renewed_subscription) await undoRenewal(strapi, invoice);
+    if (invoice.renewed_subscription) {
+      await undoRenewal(strapi, invoice);
+      data.renewed_subscription = false;
+    }
   } else if (body.status === 'verstuurd' || body.status === 'concept') {
     data.status_invoice = body.status;
     data.paid_at = null;
     line = `Status terug op ${body.status}`;
+    if (invoice.renewed_subscription) {
+      await undoRenewal(strapi, invoice);
+      data.renewed_subscription = false;
+      line += ' (verlenging teruggedraaid)';
+    }
   }
   if (body.octopus !== undefined) {
     data.octopus_number = body.octopus || null;
@@ -347,12 +346,37 @@ export const updateStatus = async (
   return strapi.db.query(INVOICE).update({ where: { id }, data });
 };
 
-/** Bij annuleren: het abonnement terugzetten naar de vorige run. */
+/** Bij betaling: last run = start van de betaalde periode (nooit terug in de tijd), count +1. */
+const applyRenewal = async (strapi: Core.Strapi, invoice: any) => {
+  if (!invoice.subscription_document_id || !invoice.period_start) return false;
+  const rows = await strapi.db.query(SUB).findMany({ where: { documentId: invoice.subscription_document_id } });
+  if (!rows.length) return false;
+  for (const row of rows) {
+    const start = String(invoice.period_start).slice(0, 10);
+    const current = row.last_run ? String(row.last_run).slice(0, 10) : '';
+    await strapi.db.query(SUB).update({
+      where: { id: row.id },
+      data: {
+        first_run: row.first_run || start,
+        last_run: start > current ? start : row.last_run,
+        run_count: (row.run_count || 0) + 1,
+        last_invoice: String(invoice.number),
+      },
+    });
+  }
+  return true;
+};
+
+/** Bij annuleren of terugzetten: het abonnement terugzetten naar de vorige run. */
 const undoRenewal = async (strapi: Core.Strapi, invoice: any) => {
   const settings = await getSettings(strapi);
   const rows = await strapi.db.query(SUB).findMany({ where: { documentId: invoice.subscription_document_id } });
   for (const row of rows) {
-    if (String(row.last_run) !== String(invoice.period_start)) continue;
+    if (String(row.last_run).slice(0, 10) !== String(invoice.period_start).slice(0, 10)) {
+      // Last run was niet door deze proforma verschoven: enkel de teller terugzetten.
+      await strapi.db.query(SUB).update({ where: { id: row.id }, data: { run_count: Math.max(0, (row.run_count || 1) - 1) } });
+      continue;
+    }
     const previous = await strapi.db.query(INVOICE).findOne({
       where: {
         subscription_document_id: invoice.subscription_document_id,

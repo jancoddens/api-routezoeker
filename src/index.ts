@@ -73,7 +73,6 @@ export default {
               discount: b.discount != null && b.discount !== '' ? Number(b.discount) : undefined,
               description: b.description ? String(b.description) : undefined,
               periodStart: /^\d{4}-\d{2}-\d{2}$/.test(String(b.periodStart || '')) ? String(b.periodStart) : undefined,
-              renew: b.renew !== false,
             });
           }),
           config: adminOnly,

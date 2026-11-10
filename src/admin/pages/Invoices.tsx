@@ -504,8 +504,8 @@ const InvoicesPage = () => {
             </Modal.Header>
             <Modal.Body>
               <Typography>
-                De proforma blijft bewaard met status "geannuleerd". Als ze het abonnement verlengd had, wordt die verlenging
-                teruggedraaid (last run en count).
+                De proforma blijft bewaard met status "geannuleerd". Was ze al betaald en het abonnement verlengd, dan wordt die
+                verlenging teruggedraaid (last run en count).
               </Typography>
             </Modal.Body>
             <Modal.Footer>
@@ -567,7 +567,6 @@ const CreateDialog = ({
   const [discount, setDiscount] = React.useState(String(sub.discount || 0));
   const [periodStart, setPeriodStart] = React.useState(String(sub.nextRun || '').slice(0, 10));
   const [description, setDescription] = React.useState('');
-  const [renew, setRenew] = React.useState(true);
   const [sendAfter, setSendAfter] = React.useState(true);
 
   return (
@@ -598,10 +597,9 @@ const CreateDialog = ({
               <Field.Input value={description} onChange={(e: any) => setDescription(e.target.value)} />
               <Field.Hint />
             </Field.Root>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14 }}>
-              <input type="checkbox" checked={renew} onChange={(e) => setRenew(e.target.checked)} />
-              Abonnement verlengen (rerun: last run = start periode, count +1)
-            </label>
+            <Typography variant="omega" textColor="neutral600">
+              Het abonnement wordt pas verlengd (last run = start periode, count +1) wanneer je de proforma op betaald zet.
+            </Typography>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14 }}>
               <input type="checkbox" checked={sendAfter} onChange={(e) => setSendAfter(e.target.checked)} />
               Daarna meteen het mailvenster openen
@@ -621,7 +619,6 @@ const CreateDialog = ({
                   discount: Number(discount) || 0,
                   periodStart: periodStart || undefined,
                   description: description || undefined,
-                  renew,
                 },
                 sendAfter,
               )
@@ -710,6 +707,11 @@ const PaidDialog = ({
               <Field.Label>Betaald op</Field.Label>
               <Field.Input type="date" value={paidAt} onChange={(e: any) => setPaidAt(e.target.value)} />
             </Field.Root>
+            {invoice.status !== 'betaald' && (
+              <Typography variant="omega" textColor="neutral600">
+                Bij opslaan wordt het abonnement verlengd: last run wordt {d(invoice.periodStart)}, count +1.
+              </Typography>
+            )}
             <Field.Root name="octopus" hint="Het nummer van de officiële factuur in Octopus (mag je later nog invullen)">
               <Field.Label>Octopus-factuurnummer</Field.Label>
               <Field.Input value={octopus} onChange={(e: any) => setOctopus(e.target.value)} />
