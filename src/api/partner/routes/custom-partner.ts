@@ -13,6 +13,12 @@ export default {
       handler: 'partner.myPartners',
     },
     {
+      // Admin-modus: alle logies (enkel voor PARTNER_ADMIN_EMAILS).
+      method: 'GET',
+      path: '/me/partners-admin',
+      handler: 'partner.allPartners',
+    },
+    {
       method: 'POST',
       path: '/me/partners/claim',
       handler: 'partner.claimPartnerInvite',

@@ -41,6 +41,21 @@ const autoPublishEnabled = () => process.env.PARTNER_SELF_EDIT_AUTO_PUBLISH !== 
 
 class ValidationError extends Error {}
 
+/**
+ * Admin-modus van het logie-dashboard: gebruikers waarvan het e-mailadres in
+ * PARTNER_ADMIN_EMAILS staat (komma-gescheiden, in .env) zien en beheren alle
+ * logies, ook zonder als manager gekoppeld te zijn.
+ */
+const isPartnerAdmin = (user: any) => {
+  const email = String(user?.email ?? '').trim().toLowerCase();
+  if (!email || user?.blocked) return false;
+  return (process.env.PARTNER_ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(email);
+};
+
 const toMedia = (file: any) => {
   if (!file?.id || !file?.url) return null;
 
@@ -75,6 +90,9 @@ const toDashboardPartner = (partner: any, extra: Record<string, unknown> = {}) =
   package: partner.partner_subscription?.package ?? null,
   subscription_status: partner.partner_subscription?.status_subscription ?? null,
   subscription_end_date: partner.partner_subscription?.end_date ?? null,
+  // Start van de allereerste abonnementsperiode (first_run), anders de huidige start.
+  subscription_start_date:
+    partner.partner_subscription?.first_run ?? partner.partner_subscription?.start_date ?? null,
   updatedAt: partner.updatedAt ?? null,
   ...extra,
 });
@@ -131,9 +149,14 @@ export default factories.createCoreController(UID, ({ strapi }) => {
    * Geeft de locale terug waarin de gebruiker deze partner mag beheren, of
    * null als de gebruiker geen manager is van deze partner.
    */
-  const resolveManagedLocale = async (userId: number, documentId: string, requestedLocale: string) => {
+  const resolveManagedLocale = async (
+    userId: number,
+    documentId: string,
+    requestedLocale: string,
+    asAdmin = false,
+  ) => {
     const rows = await strapi.db.query(UID).findMany({
-      where: { documentId, managers: { id: userId } },
+      where: asAdmin ? { documentId } : { documentId, managers: { id: userId } },
       select: ['locale'],
     });
 
@@ -155,7 +178,7 @@ export default factories.createCoreController(UID, ({ strapi }) => {
         logo: true,
         gallery: true,
         partner_subscription: {
-          fields: ['package', 'status_subscription', 'end_date'],
+          fields: ['package', 'status_subscription', 'start_date', 'end_date', 'first_run'],
         },
       },
     } as any);
@@ -184,16 +207,21 @@ export default factories.createCoreController(UID, ({ strapi }) => {
     if (!user) return null;
 
     const documentId = String(ctx.params?.documentId ?? '').trim();
-    const locale = documentId
-      ? await resolveManagedLocale(user.id, documentId, getRequestedLocale(ctx))
-      : null;
+    const requestedLocale = getRequestedLocale(ctx);
+    let locale = documentId ? await resolveManagedLocale(user.id, documentId, requestedLocale) : null;
+    let asAdmin = false;
+
+    if (documentId && !locale && isPartnerAdmin(user)) {
+      locale = await resolveManagedLocale(user.id, documentId, requestedLocale, true);
+      asAdmin = Boolean(locale);
+    }
 
     if (!documentId || !locale) {
       ctx.forbidden('Je hebt geen toegang tot deze logie.');
       return null;
     }
 
-    return { user, documentId, locale };
+    return { user, documentId, locale, asAdmin };
   };
 
   const notifyAdmin = async (partner: any, user: any, changedFields: string[], published: boolean) => {
@@ -320,9 +348,45 @@ export default factories.createCoreController(UID, ({ strapi }) => {
         }),
       );
 
+      if (isPartnerAdmin(user)) ctx.set('X-Partner-Admin', '1');
+
       return partners
         .filter(Boolean)
         .sort((a: any, b: any) => a.name.localeCompare(b.name, 'nl'));
+    },
+
+    /** Admin-modus: lichte lijst van alle logies (concept-versie, standaardtaal). */
+    async allPartners(ctx) {
+      const user = requireUser(ctx);
+      if (!user) return;
+      if (!isPartnerAdmin(user)) return ctx.forbidden('Geen toegang.');
+
+      const rows: any[] = await strapi.documents(UID).findMany({
+        locale: DEFAULT_LOCALE,
+        status: 'draft',
+        fields: ['name', 'slug', 'type', 'universe'],
+        populate: {
+          partner_subscription: { fields: ['package', 'status_subscription', 'end_date'] },
+          address: { fields: ['postal_code'] },
+          managers: { fields: ['id'] },
+        },
+        sort: 'name:asc',
+        limit: 10000,
+      } as any);
+
+      return rows.map((row) => ({
+        documentId: row.documentId,
+        name: row.name ?? '',
+        slug: row.slug ?? '',
+        type: row.type ?? null,
+        universe: row.universe ?? null,
+        postal_code: row.address?.postal_code ?? null,
+        package: row.partner_subscription?.package ?? null,
+        subscription_status: row.partner_subscription?.status_subscription ?? null,
+        subscription_end_date: row.partner_subscription?.end_date ?? null,
+        managerCount: Array.isArray(row.managers) ? row.managers.length : 0,
+        isManager: Array.isArray(row.managers) && row.managers.some((m: any) => m.id === user.id),
+      }));
     },
 
     async myPartner(ctx) {
@@ -334,6 +398,7 @@ export default factories.createCoreController(UID, ({ strapi }) => {
 
       return toDashboardPartner(partner, {
         isPublished: await hasPublishedVersion(access.documentId, access.locale),
+        viewedAsAdmin: access.asAdmin,
       });
     },
 
@@ -418,7 +483,7 @@ export default factories.createCoreController(UID, ({ strapi }) => {
       }
 
       const updated = await loadDraft(documentId, locale);
-      await notifyAdmin(updated, user, changedFields, publish);
+      if (!access.asAdmin) await notifyAdmin(updated, user, changedFields, publish);
 
       return toDashboardPartner(updated, {
         isPublished: wasPublished,

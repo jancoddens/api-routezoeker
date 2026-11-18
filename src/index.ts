@@ -200,6 +200,7 @@ const configurePasswordResetEmail = async (strapi: Core.Strapi) => {
 // Users & Permissions > Roles > Authenticated.
 const PARTNER_DASHBOARD_ACTIONS = [
   'api::partner.partner.myPartners',
+  'api::partner.partner.allPartners',
   'api::partner.partner.myPartner',
   'api::partner.partner.updateMyPartner',
   'api::partner.partner.uploadMyPartnerMedia',
