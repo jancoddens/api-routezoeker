@@ -25,6 +25,7 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { domainToASCII } = require('node:url');
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
 
 const UID = 'api::prospect.prospect';
@@ -45,6 +46,23 @@ const parseArgs = () => {
 // ---------- omzetten naar Strapi-velden ----------
 const clip = (s, n = 255) => (s ? String(s).slice(0, n) : null);
 
+// Sommige adressen in de bron staan tussen aanhalingstekens of zijn URL-gecodeerd
+// (bv. pa%C3%B1.be). Opkuisen, domeinen met accenten omzetten naar punycode,
+// en wat dan nog geen geldig adres is leeg laten.
+const cleanEmail = (raw) => {
+  if (!raw) return null;
+  let value = String(raw).trim().replace(/^['"<\s]+|['">\s]+$/g, '');
+  try {
+    value = decodeURIComponent(value);
+  } catch {}
+  value = value.replace(/[\u2010-\u2015]/g, '-');
+  const at = value.lastIndexOf('@');
+  if (at < 1) return null;
+  const domain = domainToASCII(value.slice(at + 1).toLowerCase());
+  const email = `${value.slice(0, at)}@${domain}`;
+  return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/.test(email) ? email : null;
+};
+
 const toData = (p) => {
   return {
     name: clip(p.n),
@@ -53,7 +71,7 @@ const toData = (p) => {
     province: clip(p.p),
     type: clip(p.t),
     segment: p.seg === 'horeca' ? 'horeca' : 'logies',
-    email: p.e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.e) ? p.e : null,
+    email: cleanEmail(p.e),
     phone: clip(p.ph ? p.ph.replace(/^tel:/, '') : null),
     website: clip(p.w),
     street: clip(p.s),
@@ -64,6 +82,8 @@ const toData = (p) => {
     score: p.sc ?? null,
     rank: p.rank ?? null,
     vlaanderen_vakantieland_url: p.vv ? `https://www.vlaanderenvakantieland.be${p.vv}` : null,
+    natuurhuisje: Array.isArray(p.nh) && p.nh.length > 0,
+    natuurhuisje_urls: Array.isArray(p.nh) && p.nh.length ? p.nh.join('\n') : null,
     beds: p.b ?? null,
     other_properties: p.o && p.o.length ? p.o.join(', ') : null,
     latitude: p.la ?? null,

@@ -91,6 +91,13 @@
     "vlaanderen_vakantieland_url": {
       "type": "string"
     },
+    "natuurhuisje": {
+      "type": "boolean",
+      "default": false
+    },
+    "natuurhuisje_urls": {
+      "type": "text"
+    },
     "beds": {
       "type": "integer"
     },

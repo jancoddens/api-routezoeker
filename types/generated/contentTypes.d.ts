@@ -1071,6 +1071,7 @@ export interface ApiInvoiceSettingInvoiceSetting
     draftAndPublish: false;
   };
   attributes: {
+    account_holder: Schema.Attribute.String;
     bcc_email: Schema.Attribute.String;
     company_address: Schema.Attribute.Text;
     company_bic: Schema.Attribute.String;
@@ -1098,7 +1099,7 @@ export interface ApiInvoiceSettingInvoiceSetting
     pdf_footer: Schema.Attribute.Text;
     period_months: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<12>;
     prices_include_vat: Schema.Attribute.Boolean &
-      Schema.Attribute.DefaultTo<true>;
+      Schema.Attribute.DefaultTo<false>;
     publishedAt: Schema.Attribute.DateTime;
     remind_days_before: Schema.Attribute.Integer &
       Schema.Attribute.DefaultTo<30>;
@@ -1618,6 +1619,7 @@ export interface ApiPartnerInvoicePartnerInvoice
     history: Schema.Attribute.Text;
     invoice_date: Schema.Attribute.Date;
     last_reminder_at: Schema.Attribute.DateTime;
+    lines: Schema.Attribute.JSON;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1638,6 +1640,7 @@ export interface ApiPartnerInvoicePartnerInvoice
     price: Schema.Attribute.Decimal;
     publishedAt: Schema.Attribute.DateTime;
     reminder_count: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    renewal_snapshot: Schema.Attribute.JSON;
     renewed_subscription: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     sent_at: Schema.Attribute.DateTime;
@@ -1791,6 +1794,12 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
       'images' | 'files' | 'videos' | 'audios',
       true
     > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    highlights: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -2098,6 +2107,8 @@ export interface ApiProspectProspect extends Struct.CollectionTypeSchema {
     mail_count: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     mailed_at: Schema.Attribute.Date;
     name: Schema.Attribute.String & Schema.Attribute.Required;
+    natuurhuisje: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    natuurhuisje_urls: Schema.Attribute.Text;
     nearest_routes: Schema.Attribute.Text;
     notes: Schema.Attribute.Text;
     other_properties: Schema.Attribute.Text;
