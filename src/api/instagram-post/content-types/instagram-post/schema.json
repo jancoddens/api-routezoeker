@@ -1,0 +1,42 @@
+{
+  "kind": "collectionType",
+  "collectionName": "instagram_posts",
+  "info": {
+    "singularName": "instagram-post",
+    "pluralName": "instagram-posts",
+    "displayName": "Instagrampost",
+    "description": "Posts op het Instagramaccount van Routezoeker, getoond op /instagram (link in bio)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "posted_on": {
+      "type": "date",
+      "required": true
+    },
+    "instagram_url": {
+      "type": "string"
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "caption": {
+      "type": "text"
+    },
+    "routes": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::route.route"
+    },
+    "link": {
+      "type": "string"
+    }
+  }
+}
