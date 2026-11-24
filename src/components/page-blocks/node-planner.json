@@ -1,0 +1,22 @@
+{
+  "collectionName": "components_page_blocks_node_planners",
+  "info": {
+    "displayName": "node_planner",
+    "description": "Promoblok voor de knooppuntenplanner (zelfde blok als op de homepagina)"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "text": {
+      "type": "text"
+    },
+    "mode": {
+      "type": "enumeration",
+      "enum": ["beide", "wandelen", "fietsen"],
+      "default": "beide"
+    }
+  },
+  "config": {}
+}

@@ -122,7 +122,8 @@
         "page-blocks.verdict",
         "page-blocks.product-card",
         "page-blocks.photo-carousel",
-        "page-blocks.route-block"
+        "page-blocks.route-block",
+        "page-blocks.node-planner"
       ]
     }
   }
