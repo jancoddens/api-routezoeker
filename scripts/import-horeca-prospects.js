@@ -28,6 +28,8 @@
  * `pm2 stop strapi` en daarna `pm2 start strapi`.
  */
 
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const { domainToASCII } = require('node:url');
 const crypto = require('node:crypto');
 const { compileStrapi, createStrapi } = require('@strapi/strapi');
@@ -91,6 +93,27 @@ const toLine = (geometry) => {
   return (coords || [])
     .filter((c) => Array.isArray(c) && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])))
     .map((c) => [Number(c[1]), Number(c[0])]);
+};
+
+// Routes zonder ingevulde routelijn: de lijn uit het GPX-bestand halen
+// (public/uploads op de server).
+const readGpxLine = async (file) => {
+  const url = file?.url;
+  if (!url || !String(url).startsWith('/uploads/')) return [];
+  try {
+    const text = await fs.readFile(path.join(process.cwd(), 'public', url), 'utf8');
+    const points = [];
+    const tagRegex = /<(?:[\w-]+:)?(?:trkpt|rtept)\b([^>]*)>/g;
+    let match;
+    while ((match = tagRegex.exec(text))) {
+      const lat = Number(/\blat\s*=\s*["']([^"']+)["']/.exec(match[1])?.[1]);
+      const lng = Number(/\blon\s*=\s*["']([^"']+)["']/.exec(match[1])?.[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) points.push([lat, lng]);
+    }
+    return points;
+  } catch {
+    return [];
+  }
 };
 
 // Lijnen vereenvoudigen: punten dichter dan 25 m bij het vorige punt weglaten.
@@ -184,24 +207,37 @@ const main = async () => {
     // 1. Routes.
     const rows = await strapi.db.query(ROUTE_UID).findMany({
       where: { publishedAt: { $notNull: true } },
-      select: ['id', 'title', 'route_geometry'],
-      populate: { theme: { select: ['slug'] }, route_start_locations: true },
+      select: ['id', 'documentId', 'title', 'route_geometry'],
+      populate: { theme: { select: ['slug'] }, route_start_locations: { populate: { gpx_file: true } } },
     });
     const seen = new Set();
     const routes = [];
+    let fromGpx = 0;
+    let noLine = 0;
     for (const row of rows) {
-      if (seen.has(row.title)) continue; // één rij per route (locales)
+      const key = row.documentId || row.title;
+      if (seen.has(key)) continue; // één rij per route (concept/gepubliceerd, locales)
       const startGeometry = Array.isArray(row.route_start_locations)
         ? row.route_start_locations.find((loc) => loc?.route_geometry)?.route_geometry
         : null;
-      const line = thin(toLine(row.route_geometry || startGeometry));
-      if (line.length < 2) continue;
+      let line = thin(toLine(row.route_geometry || startGeometry));
+      if (line.length < 2) {
+        const gpxFile = Array.isArray(row.route_start_locations)
+          ? row.route_start_locations.find((loc) => loc?.gpx_file)?.gpx_file
+          : null;
+        line = thin(await readGpxLine(gpxFile));
+        if (line.length >= 2) fromGpx += 1;
+      }
+      if (line.length < 2) {
+        noLine += 1;
+        continue;
+      }
       const themeSlug = String(row.theme?.slug || '').toLowerCase();
       const kind = /fiets/.test(themeSlug) ? 'fietsen' : 'wandelen';
-      seen.add(row.title);
+      seen.add(key);
       routes.push({ title: row.title, kind, line, start: line[0] });
     }
-    log(`${routes.length} gepubliceerde routes met een routelijn`);
+    log(`${routes.length} gepubliceerde routes met een routelijn (${fromGpx} daarvan uit het GPX-bestand); ${noLine} zonder lijn of GPX`);
     const segmentIndex = buildSegmentIndex(routes);
 
     // 2. Horeca uit OpenStreetMap.
