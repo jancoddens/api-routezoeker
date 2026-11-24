@@ -1134,10 +1134,13 @@ export interface ApiInvoiceSettingInvoiceSetting
       Schema.Attribute.DefaultTo<30>;
     pdf_footer: Schema.Attribute.Text;
     period_months: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<12>;
+    price_full: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<199>;
     price_horeca_basis: Schema.Attribute.Decimal &
       Schema.Attribute.DefaultTo<49>;
     price_horeca_plus: Schema.Attribute.Decimal &
       Schema.Attribute.DefaultTo<99>;
+    price_pro: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<99>;
+    price_starter: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<39.99>;
     prices_include_vat: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     publishedAt: Schema.Attribute.DateTime;
@@ -2232,6 +2235,7 @@ export interface ApiProspectProspect extends Struct.CollectionTypeSchema {
     province: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     rank: Schema.Attribute.Integer;
+    routes_250m: Schema.Attribute.Integer;
     score: Schema.Attribute.Decimal;
     segment: Schema.Attribute.Enumeration<['logies', 'horeca']> &
       Schema.Attribute.DefaultTo<'logies'>;

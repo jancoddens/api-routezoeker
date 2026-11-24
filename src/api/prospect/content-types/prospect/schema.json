@@ -79,6 +79,9 @@
     "bike_routes_15km": {
       "type": "integer"
     },
+    "routes_250m": {
+      "type": "integer"
+    },
     "nearest_routes": {
       "type": "text"
     },

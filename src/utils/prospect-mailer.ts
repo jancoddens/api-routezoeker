@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { Core } from '@strapi/strapi';
+import { getHorecaPackagePrices } from './horeca-packages';
 
 // Prospectmails: één voor één, met een pauze ertussen, als gewone tekstmail
 // vanuit het Routezoeker-adres. Elke mail krijgt een persoonlijke
@@ -60,6 +61,47 @@ Liever geen mails meer van Routezoeker? Schrijf je hier uit: {uitschrijflink}`,
   horeca_first_subject: 'Wandelaars en fietsers komen langs {naam}',
   horeca_first_body: `Dag,
 
+Ik ben Jan van Routezoeker.com, de site waar elke maand meer dan 55.000 wandelaars en fietsers een route zoeken.
+
+{naam} ligt aan {routes_langs} op Routezoeker{waaronder}. Wie zo'n route kiest, ziet op de routepagina meteen waar hij onderweg iets kan eten of drinken. Jullie {soort} staat daar misschien al, met enkel naam en afstand.
+
+Als partner sta je bij al die routes bovenaan, met:
+- foto's, openingsuren en een link naar jullie website
+- een eigen pagina met de routes die bij jullie starten
+- statistieken: hoe vaak jullie gezien en aangeklikt worden
+
+Geen commissie, geen contract: {prijs} per jaar (excl. btw). Bekijk het hier: {pakketten_link}
+
+Zal ik jullie pagina alvast klaarzetten? Een kort antwoord op deze mail volstaat.
+
+Met vriendelijke groeten,
+Jan Coddens
+Routezoeker.com
+
+Liever geen mails meer van Routezoeker? Schrijf je hier uit: {uitschrijflink}`,
+  horeca_followup_subject: 'Nog even over wandelaars en fietsers bij {naam}',
+  horeca_followup_body: `Dag,
+
+Vorige week stuurde ik je een mailtje over Routezoeker. Kort: {naam} ligt aan {routes_langs} die wandelaars en fietsers bij ons opzoeken. Wie een route plant, zoekt meteen ook een plek voor een koffie, een pint of een middagmaal.
+
+Als partner sta je bovenaan bij die routes, met foto's, openingsuren en een link naar je website. {prijs} per jaar, zonder commissie: {pakketten_link}
+
+Interesse? Een kort antwoord op deze mail volstaat, dan maak ik de pagina voor je klaar.
+
+Groeten,
+Jan Coddens
+Routezoeker.com
+
+Liever geen mails meer van Routezoeker? Schrijf je hier uit: {uitschrijflink}`,
+};
+
+// Oude standaardteksten voor horeca (vóór de horecapakketten van nov 2026).
+// Staan die nog ongewijzigd in Strapi, dan vervangen we ze bij het opstarten
+// door de nieuwe standaardteksten. Zelf aangepaste teksten blijven staan.
+const LEGACY_HORECA_TEMPLATE: Record<string, string> = {
+  horeca_first_subject: 'Wandelaars en fietsers komen langs {naam}',
+  horeca_first_body: `Dag,
+
 Ik ben Jan van Routezoeker.com, de site waar elke maand meer dan 55.000 wandelaars en fietsers een route zoeken in Vlaanderen.
 
 Binnen 15 km van {naam} in {gemeente} liggen {routes}{waaronder}. Die mensen zoeken onderweg een plek om te stoppen. Met een eigen pagina op Routezoeker verschijnt jullie {soort} bij die routes, met een link naar jullie website.
@@ -106,6 +148,8 @@ const TYPE_WORD: Record<string, string> = {
   pub: 'café',
   bar: 'bar',
   biergarten: 'terras',
+  fast_food: 'frituur',
+  ice_cream: 'ijssalon',
 };
 
 export const newUnsubscribeToken = () => crypto.randomBytes(18).toString('base64url');
@@ -118,6 +162,12 @@ const routeSentence = (p: any) => {
   if (walks) parts.push(`${walks} wandelroute${walks > 1 ? 's' : ''}`);
   if (bikes) parts.push(`${bikes} fietsroute${bikes > 1 ? 's' : ''}`);
   return parts.join(' en ') || 'heel wat routes';
+};
+
+// Horeca: aantal routes die binnen 250 m langs de zaak komen.
+const routesAlongSentence = (p: any) => {
+  const count = Number(p.routes_250m) || 0;
+  return count === 1 ? '1 wandel- of fietsroute' : count > 1 ? `${count} wandel- en fietsroutes` : 'wandel- en fietsroutes';
 };
 
 const topRoutes = (p: any) =>
@@ -144,7 +194,9 @@ export const renderMail = (template: any, prospect: any, kind: MailKind, token: 
     Routes: routes.charAt(0).toUpperCase() + routes.slice(1),
     waaronder: top ? `, waaronder ${top}` : '',
     routes_link: `${siteUrl()}/routes-in-de-buurt?q=${encodeURIComponent(prospect.city || '')}`,
-    pakketten_link: `${siteUrl()}/logie-aanmelden`,
+    pakketten_link: `${siteUrl()}/${segment === 'horeca' ? 'horeca-aanmelden' : 'logie-aanmelden'}`,
+    routes_langs: routesAlongSentence(prospect),
+    prijs: `€ ${String(template?.horeca_price ?? 49).replace('.', ',')}`,
     uitschrijflink: unsubscribeUrl(token),
   };
 
@@ -159,13 +211,29 @@ export const renderMail = (template: any, prospect: any, kind: MailKind, token: 
 
 export const getTemplate = async (strapi: Core.Strapi) => {
   const stored = await strapi.documents(TEMPLATE).findFirst({});
-  return { ...DEFAULT_TEMPLATE, ...Object.fromEntries(Object.entries(stored || {}).filter(([, v]) => v !== null && v !== '')) };
+  const prices = await getHorecaPackagePrices(strapi);
+  return {
+    ...DEFAULT_TEMPLATE,
+    ...Object.fromEntries(Object.entries(stored || {}).filter(([, v]) => v !== null && v !== '')),
+    horeca_price: prices['Horeca Basis'],
+  };
 };
 
 /** Bij het opstarten: standaardteksten aanmaken en prospects zonder fase op "nieuw" zetten. */
 export const ensureProspectSetup = async (strapi: Core.Strapi) => {
   const stored = await strapi.documents(TEMPLATE).findFirst({});
-  if (!stored) await strapi.documents(TEMPLATE).create({ data: DEFAULT_TEMPLATE as any });
+  if (!stored) {
+    await strapi.documents(TEMPLATE).create({ data: DEFAULT_TEMPLATE as any });
+  } else {
+    const updates = Object.fromEntries(
+      Object.entries(LEGACY_HORECA_TEMPLATE)
+        .filter(([key, legacy]) => (stored as any)[key] === legacy)
+        .map(([key]) => [key, (DEFAULT_TEMPLATE as any)[key]]),
+    );
+    if (Object.keys(updates).length) {
+      await strapi.documents(TEMPLATE).update({ documentId: stored.documentId, data: updates as any });
+    }
+  }
   await strapi.db.query(PROSPECT).updateMany({ where: { stage: { $null: true } }, data: { stage: 'nieuw' } });
 };
 

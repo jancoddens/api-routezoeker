@@ -27,6 +27,33 @@ const EDITABLE_TEXT_FIELDS = {
 
 type EditableTextField = keyof typeof EDITABLE_TEXT_FIELDS;
 
+// Horeca: openingsuren en voorzieningen die de uitbater zelf mag aanpassen.
+const FACILITY_FIELDS = [
+  'has_terrace',
+  'has_bike_parking',
+  'has_ebike_charging',
+  'has_dogs_welcome',
+  'has_public_toilet',
+  'has_water_refill',
+  'has_groups_welcome',
+] as const;
+const OPENING_DAYS = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
+const MAX_OPENING_ROWS = 21;
+const OPENING_NOTE_MAX = 255;
+
+// Strapi bewaart tijden als "HH:mm:ss.SSS"; het dashboard werkt met "HH:mm".
+const toShortTime = (value: unknown) => {
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(value ?? ''));
+  return match ? `${match[1].padStart(2, '0')}:${match[2]}` : '';
+};
+
+const toOpeningRows = (rows: unknown) =>
+  (Array.isArray(rows) ? rows : []).map((row: any) => ({
+    day: row?.day ?? '',
+    opens: toShortTime(row?.opens),
+    closes: toShortTime(row?.closes),
+  }));
+
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_GALLERY_IMAGES = 30;
@@ -87,6 +114,9 @@ const toDashboardPartner = (partner: any, extra: Record<string, unknown> = {}) =
   cover_image: toMedia(partner.cover_image),
   logo: toMedia(partner.logo),
   gallery: (Array.isArray(partner.gallery) ? partner.gallery : []).map(toMedia).filter(Boolean),
+  opening_hours: toOpeningRows(partner.opening_hours),
+  opening_hours_note: partner.opening_hours_note ?? '',
+  ...Object.fromEntries(FACILITY_FIELDS.map((field) => [field, partner[field] === true])),
   package: partner.partner_subscription?.package ?? null,
   subscription_status: partner.partner_subscription?.status_subscription ?? null,
   subscription_end_date: partner.partner_subscription?.end_date ?? null,
@@ -130,6 +160,22 @@ const normalizeText = (field: EditableTextField, value: unknown): string | null 
   }
 
   return trimmed;
+};
+
+const normalizeOpeningHours = (value: unknown) => {
+  if (!Array.isArray(value)) throw new ValidationError('Ongeldige openingsuren.');
+  if (value.length > MAX_OPENING_ROWS) throw new ValidationError('Te veel rijen in de openingsuren.');
+  return value.map((row: any) => {
+    const day = String(row?.day ?? '');
+    const opens = toShortTime(row?.opens);
+    const closes = toShortTime(row?.closes);
+    if (!OPENING_DAYS.includes(day)) throw new ValidationError('Ongeldige dag in de openingsuren.');
+    if (!opens || !closes) throw new ValidationError(`Vul voor ${day.toLowerCase()} een begin- en einduur in.`);
+    const [oh, om] = opens.split(':').map(Number);
+    const [ch, cm] = closes.split(':').map(Number);
+    if (oh > 23 || om > 59 || ch > 23 || cm > 59) throw new ValidationError(`Ongeldig uur bij ${day.toLowerCase()}.`);
+    return { day, opens, closes };
+  });
 };
 
 const toId = (value: unknown): number | null => {
@@ -177,6 +223,7 @@ export default factories.createCoreController(UID, ({ strapi }) => {
         cover_image: true,
         logo: true,
         gallery: true,
+        opening_hours: true,
         partner_subscription: {
           fields: ['package', 'status_subscription', 'start_date', 'end_date', 'first_run'],
         },
@@ -420,6 +467,35 @@ export default factories.createCoreController(UID, ({ strapi }) => {
           const value = normalizeText(field, body[field]);
           data[field] = value;
           if ((current[field] ?? null) !== value) changedFields.push(field);
+        });
+
+        if ('opening_hours' in body) {
+          const rows = normalizeOpeningHours(body.opening_hours);
+          // Strapi verwacht "HH:mm:ss.SSS"; de hele lijst wordt vervangen.
+          data.opening_hours = rows.map((row) => ({
+            day: row.day,
+            opens: `${row.opens}:00.000`,
+            closes: `${row.closes}:00.000`,
+          }));
+          if (JSON.stringify(toOpeningRows(current.opening_hours)) !== JSON.stringify(rows)) {
+            changedFields.push('opening_hours');
+          }
+        }
+
+        if ('opening_hours_note' in body) {
+          const note = typeof body.opening_hours_note === 'string' ? body.opening_hours_note.trim() : '';
+          if (note.length > OPENING_NOTE_MAX) {
+            throw new ValidationError(`De opmerking bij de openingsuren mag maximaal ${OPENING_NOTE_MAX} tekens bevatten.`);
+          }
+          data.opening_hours_note = note || null;
+          if ((current.opening_hours_note ?? '') !== note) changedFields.push('opening_hours_note');
+        }
+
+        FACILITY_FIELDS.forEach((field) => {
+          if (!(field in body)) return;
+          if (typeof body[field] !== 'boolean') throw new ValidationError('Ongeldige voorziening.');
+          data[field] = body[field];
+          if ((current[field] === true) !== body[field]) changedFields.push(field);
         });
 
         const currentIds = new Set<number>(
