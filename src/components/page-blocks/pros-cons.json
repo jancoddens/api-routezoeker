@@ -1,0 +1,28 @@
+{
+  "collectionName": "components_page_blocks_pros_cons",
+  "info": {
+    "displayName": "pros_cons",
+    "description": "Plus- en minpunten naast elkaar. Eén punt per regel."
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "pros_title": {
+      "type": "string",
+      "default": "Pluspunten"
+    },
+    "pros": {
+      "type": "text"
+    },
+    "cons_title": {
+      "type": "string",
+      "default": "Minpunten"
+    },
+    "cons": {
+      "type": "text"
+    }
+  },
+  "config": {}
+}

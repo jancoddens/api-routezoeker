@@ -1,0 +1,19 @@
+{
+  "collectionName": "components_page_blocks_verdict_criteria",
+  "info": {
+    "displayName": "verdict_criterion"
+  },
+  "options": {},
+  "attributes": {
+    "label": {
+      "type": "string",
+      "required": true
+    },
+    "score": {
+      "type": "decimal",
+      "required": true,
+      "min": 0
+    }
+  },
+  "config": {}
+}

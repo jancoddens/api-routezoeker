@@ -1,0 +1,28 @@
+{
+  "collectionName": "components_page_blocks_spec_tables",
+  "info": {
+    "displayName": "spec_table",
+    "description": "Specificatietabel: label, waarde en optioneel icoon"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "default": "Specificaties"
+    },
+    "layout": {
+      "type": "enumeration",
+      "enum": [
+        "tabel",
+        "kaarten"
+      ],
+      "default": "tabel"
+    },
+    "rows": {
+      "type": "component",
+      "component": "page-blocks.spec-row",
+      "repeatable": true
+    }
+  },
+  "config": {}
+}

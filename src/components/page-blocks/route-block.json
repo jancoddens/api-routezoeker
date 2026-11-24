@@ -1,0 +1,27 @@
+{
+  "collectionName": "components_page_blocks_route_blocks",
+  "info": {
+    "displayName": "route_block",
+    "description": "Koppeling naar een route op Routezoeker, met kaart en afstand"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "route": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::route.route"
+    },
+    "show_map": {
+      "type": "boolean",
+      "default": true
+    },
+    "button_label": {
+      "type": "string",
+      "default": "Bekijk de route"
+    }
+  },
+  "config": {}
+}

@@ -1,0 +1,21 @@
+{
+  "collectionName": "components_page_blocks_photo_carousels",
+  "info": {
+    "displayName": "photo_carousel",
+    "description": "Fotocarrousel voor blogs. Bijschrift = caption van de foto in de Media Library."
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "images": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images"
+      ]
+    }
+  },
+  "config": {}
+}

@@ -661,6 +661,12 @@ export interface ApiBlogPostBlogPost extends Struct.CollectionTypeSchema {
         'page-blocks.ups',
         'page-blocks.search',
         'page-blocks.partner',
+        'page-blocks.spec-table',
+        'page-blocks.pros-cons',
+        'page-blocks.verdict',
+        'page-blocks.product-card',
+        'page-blocks.photo-carousel',
+        'page-blocks.route-block',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{

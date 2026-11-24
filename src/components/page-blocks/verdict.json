@@ -1,0 +1,32 @@
+{
+  "collectionName": "components_page_blocks_verdicts",
+  "info": {
+    "displayName": "verdict",
+    "description": "Score per criterium en eindscore. Leeg eindcijfer = gemiddelde."
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "default": "Ons oordeel"
+    },
+    "criteria": {
+      "type": "component",
+      "component": "page-blocks.verdict-criterion",
+      "repeatable": true
+    },
+    "max_score": {
+      "type": "integer",
+      "default": 10,
+      "min": 1
+    },
+    "final_score": {
+      "type": "decimal",
+      "min": 0
+    },
+    "summary": {
+      "type": "text"
+    }
+  },
+  "config": {}
+}

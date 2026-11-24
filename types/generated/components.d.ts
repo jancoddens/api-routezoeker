@@ -225,6 +225,55 @@ export interface PageBlocksPartner extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksPhotoCarousel extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_photo_carousels';
+  info: {
+    description: 'Fotocarrousel voor blogs. Bijschrift = caption van de foto in de Media Library.';
+    displayName: 'photo_carousel';
+  };
+  attributes: {
+    images: Schema.Attribute.Media<'images', true>;
+    title: Schema.Attribute.String;
+  };
+}
+
+export interface PageBlocksProductCard extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_product_cards';
+  info: {
+    description: 'Productkaart met foto, prijs en knop naar de merkwebsite';
+    displayName: 'product_card';
+  };
+  attributes: {
+    brand: Schema.Attribute.String;
+    button_label: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'Bekijk bij het merk'>;
+    description: Schema.Attribute.Text;
+    image: Schema.Attribute.Media<'images'>;
+    in_collaboration: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    name: Schema.Attribute.String & Schema.Attribute.Required;
+    price: Schema.Attribute.String;
+    url: Schema.Attribute.String;
+  };
+}
+
+export interface PageBlocksProsCons extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_pros_cons';
+  info: {
+    description: 'Plus- en minpunten naast elkaar. E\u00E9n punt per regel.';
+    displayName: 'pros_cons';
+  };
+  attributes: {
+    cons: Schema.Attribute.Text;
+    cons_title: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'Minpunten'>;
+    pros: Schema.Attribute.Text;
+    pros_title: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'Pluspunten'>;
+    title: Schema.Attribute.String;
+  };
+}
+
 export interface PageBlocksQuote extends Struct.ComponentSchema {
   collectionName: 'components_page_blocks_quotes';
   info: {
@@ -252,6 +301,21 @@ export interface PageBlocksRegionSlider extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksRouteBlock extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_route_blocks';
+  info: {
+    description: 'Koppeling naar een route op Routezoeker, met kaart en afstand';
+    displayName: 'route_block';
+  };
+  attributes: {
+    button_label: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'Bekijk de route'>;
+    route: Schema.Attribute.Relation<'oneToOne', 'api::route.route'>;
+    show_map: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    title: Schema.Attribute.String;
+  };
+}
+
 export interface PageBlocksSearch extends Struct.ComponentSchema {
   collectionName: 'components_page_blocks_searches';
   info: {
@@ -267,6 +331,57 @@ export interface PageBlocksSearch extends Struct.ComponentSchema {
     text_search: Schema.Attribute.String;
     themes: Schema.Attribute.Relation<'oneToMany', 'api::theme.theme'>;
     title: Schema.Attribute.String;
+  };
+}
+
+export interface PageBlocksSpecRow extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_spec_rows';
+  info: {
+    displayName: 'spec_row';
+  };
+  attributes: {
+    icon: Schema.Attribute.Enumeration<
+      [
+        'geen',
+        'afstand',
+        'duur',
+        'hoogte',
+        'gewicht',
+        'batterij',
+        'motor',
+        'bereik',
+        'versnellingen',
+        'remmen',
+        'banden',
+        'frame',
+        'maat',
+        'materiaal',
+        'prijs',
+        'garantie',
+        'kleur',
+        'waterdicht',
+        'seizoen',
+        'persoon',
+      ]
+    > &
+      Schema.Attribute.DefaultTo<'geen'>;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    value: Schema.Attribute.String & Schema.Attribute.Required;
+  };
+}
+
+export interface PageBlocksSpecTable extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_spec_tables';
+  info: {
+    description: 'Specificatietabel: label, waarde en optioneel icoon';
+    displayName: 'spec_table';
+  };
+  attributes: {
+    layout: Schema.Attribute.Enumeration<['tabel', 'kaarten']> &
+      Schema.Attribute.DefaultTo<'tabel'>;
+    rows: Schema.Attribute.Component<'page-blocks.spec-row', true>;
+    title: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'Specificaties'>;
   };
 }
 
@@ -313,6 +428,52 @@ export interface PageBlocksUspList extends Struct.ComponentSchema {
     sub_title: Schema.Attribute.String;
     title: Schema.Attribute.String;
     usp: Schema.Attribute.Component<'page-blocks.ups', true>;
+  };
+}
+
+export interface PageBlocksVerdict extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_verdicts';
+  info: {
+    description: 'Score per criterium en eindscore. Leeg eindcijfer = gemiddelde.';
+    displayName: 'verdict';
+  };
+  attributes: {
+    criteria: Schema.Attribute.Component<'page-blocks.verdict-criterion', true>;
+    final_score: Schema.Attribute.Decimal &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    max_score: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<10>;
+    summary: Schema.Attribute.Text;
+    title: Schema.Attribute.String & Schema.Attribute.DefaultTo<'Ons oordeel'>;
+  };
+}
+
+export interface PageBlocksVerdictCriterion extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_verdict_criteria';
+  info: {
+    displayName: 'verdict_criterion';
+  };
+  attributes: {
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    score: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
   };
 }
 
@@ -500,12 +661,20 @@ declare module '@strapi/strapi' {
       'page-blocks.image-text': PageBlocksImageText;
       'page-blocks.list': PageBlocksList;
       'page-blocks.partner': PageBlocksPartner;
+      'page-blocks.photo-carousel': PageBlocksPhotoCarousel;
+      'page-blocks.product-card': PageBlocksProductCard;
+      'page-blocks.pros-cons': PageBlocksProsCons;
       'page-blocks.quote': PageBlocksQuote;
       'page-blocks.region-slider': PageBlocksRegionSlider;
+      'page-blocks.route-block': PageBlocksRouteBlock;
       'page-blocks.search': PageBlocksSearch;
+      'page-blocks.spec-row': PageBlocksSpecRow;
+      'page-blocks.spec-table': PageBlocksSpecTable;
       'page-blocks.text-section': PageBlocksTextSection;
       'page-blocks.ups': PageBlocksUps;
       'page-blocks.usp-list': PageBlocksUspList;
+      'page-blocks.verdict': PageBlocksVerdict;
+      'page-blocks.verdict-criterion': PageBlocksVerdictCriterion;
       'page-blocks.video-embed': PageBlocksVideoEmbed;
       'partner.opening-hours': PartnerOpeningHours;
       'route.route-end-location': RouteRouteEndLocation;

@@ -1,0 +1,44 @@
+{
+  "collectionName": "components_page_blocks_spec_rows",
+  "info": {
+    "displayName": "spec_row"
+  },
+  "options": {},
+  "attributes": {
+    "label": {
+      "type": "string",
+      "required": true
+    },
+    "value": {
+      "type": "string",
+      "required": true
+    },
+    "icon": {
+      "type": "enumeration",
+      "enum": [
+        "geen",
+        "afstand",
+        "duur",
+        "hoogte",
+        "gewicht",
+        "batterij",
+        "motor",
+        "bereik",
+        "versnellingen",
+        "remmen",
+        "banden",
+        "frame",
+        "maat",
+        "materiaal",
+        "prijs",
+        "garantie",
+        "kleur",
+        "waterdicht",
+        "seizoen",
+        "persoon"
+      ],
+      "default": "geen"
+    }
+  },
+  "config": {}
+}

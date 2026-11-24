@@ -1,0 +1,42 @@
+{
+  "collectionName": "components_page_blocks_product_cards",
+  "info": {
+    "displayName": "product_card",
+    "description": "Productkaart met foto, prijs en knop naar de merkwebsite"
+  },
+  "options": {},
+  "attributes": {
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "brand": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "price": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "url": {
+      "type": "string"
+    },
+    "button_label": {
+      "type": "string",
+      "default": "Bekijk bij het merk"
+    },
+    "in_collaboration": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "config": {}
+}
