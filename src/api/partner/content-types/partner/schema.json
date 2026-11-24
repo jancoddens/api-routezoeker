@@ -62,7 +62,12 @@
         "Popup bar",
         "Fietsverhuur",
         "Kasteel",
-        "Dagverblijf"
+        "Dagverblijf",
+        "Brasserie",
+        "Bar",
+        "Tearoom",
+        "Frituur",
+        "IJssalon"
       ]
     },
     "highlights": {
@@ -175,6 +180,87 @@
       },
       "component": "shared.address",
       "repeatable": true
+    },
+    "opening_hours": {
+      "type": "component",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "component": "partner.opening-hours",
+      "repeatable": true
+    },
+    "opening_hours_note": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "has_terrace": {
+      "type": "boolean",
+      "default": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "has_bike_parking": {
+      "type": "boolean",
+      "default": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "has_ebike_charging": {
+      "type": "boolean",
+      "default": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "has_dogs_welcome": {
+      "type": "boolean",
+      "default": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "has_public_toilet": {
+      "type": "boolean",
+      "default": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "has_water_refill": {
+      "type": "boolean",
+      "default": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "has_groups_welcome": {
+      "type": "boolean",
+      "default": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "content": {
       "type": "dynamiczone",

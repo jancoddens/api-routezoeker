@@ -333,6 +333,30 @@ export interface PageBlocksVideoEmbed extends Struct.ComponentSchema {
   };
 }
 
+export interface PartnerOpeningHours extends Struct.ComponentSchema {
+  collectionName: 'components_partner_opening_hours';
+  info: {
+    description: 'E\u00E9n rij per dag (twee rijen voor een middagpauze). Dagen zonder rij = gesloten.';
+    displayName: 'Openingsuren';
+  };
+  attributes: {
+    closes: Schema.Attribute.Time;
+    day: Schema.Attribute.Enumeration<
+      [
+        'Maandag',
+        'Dinsdag',
+        'Woensdag',
+        'Donderdag',
+        'Vrijdag',
+        'Zaterdag',
+        'Zondag',
+      ]
+    > &
+      Schema.Attribute.Required;
+    opens: Schema.Attribute.Time;
+  };
+}
+
 export interface RouteRouteEndLocation extends Struct.ComponentSchema {
   collectionName: 'components_route_route_end_locations';
   info: {
@@ -483,6 +507,7 @@ declare module '@strapi/strapi' {
       'page-blocks.ups': PageBlocksUps;
       'page-blocks.usp-list': PageBlocksUspList;
       'page-blocks.video-embed': PageBlocksVideoEmbed;
+      'partner.opening-hours': PartnerOpeningHours;
       'route.route-end-location': RouteRouteEndLocation;
       'route.route-markings': RouteRouteMarkings;
       'route.route-nodes': RouteRouteNodes;

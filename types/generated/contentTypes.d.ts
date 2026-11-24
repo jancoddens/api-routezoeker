@@ -1058,6 +1058,42 @@ export interface ApiFavoriteRouteFavoriteRoute
   };
 }
 
+export interface ApiInstagramPostInstagramPost
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'instagram_posts';
+  info: {
+    description: 'Posts op het Instagramaccount van Routezoeker, getoond op /instagram (link in bio)';
+    displayName: 'Instagrampost';
+    pluralName: 'instagram-posts';
+    singularName: 'instagram-post';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    caption: Schema.Attribute.Text;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    image: Schema.Attribute.Media<'images'>;
+    instagram_url: Schema.Attribute.String;
+    link: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::instagram-post.instagram-post'
+    > &
+      Schema.Attribute.Private;
+    posted_on: Schema.Attribute.Date & Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    routes: Schema.Attribute.Relation<'manyToMany', 'api::route.route'>;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiInvoiceSettingInvoiceSetting
   extends Struct.SingleTypeSchema {
   collectionName: 'invoice_settings';
@@ -1098,6 +1134,10 @@ export interface ApiInvoiceSettingInvoiceSetting
       Schema.Attribute.DefaultTo<30>;
     pdf_footer: Schema.Attribute.Text;
     period_months: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<12>;
+    price_horeca_basis: Schema.Attribute.Decimal &
+      Schema.Attribute.DefaultTo<49>;
+    price_horeca_plus: Schema.Attribute.Decimal &
+      Schema.Attribute.DefaultTo<99>;
     prices_include_vat: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     publishedAt: Schema.Attribute.DateTime;
@@ -1694,7 +1734,15 @@ export interface ApiPartnerSubscriptionPartnerSubscription
       Schema.Attribute.Private;
     notes: Schema.Attribute.Text;
     package: Schema.Attribute.Enumeration<
-      ['Free', 'Starter', 'Pro', 'Full', 'Folder']
+      [
+        'Free',
+        'Starter',
+        'Pro',
+        'Full',
+        'Folder',
+        'Horeca Basis',
+        'Horeca Plus',
+      ]
     >;
     partner: Schema.Attribute.Relation<'oneToOne', 'api::partner.partner'>;
     price: Schema.Attribute.Decimal;
@@ -1799,6 +1847,55 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
           localized: true;
         };
       }>;
+    has_bike_parking: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
+    has_dogs_welcome: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
+    has_ebike_charging: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
+    has_groups_welcome: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
+    has_public_toilet: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
+    has_terrace: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
+    has_water_refill: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
     highlights: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -1840,6 +1937,18 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
         };
       }>;
     name: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    opening_hours: Schema.Attribute.Component<'partner.opening-hours', true> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    opening_hours_note: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1888,6 +1997,11 @@ export interface ApiPartnerPartner extends Struct.CollectionTypeSchema {
         'Fietsverhuur',
         'Kasteel',
         'Dagverblijf',
+        'Brasserie',
+        'Bar',
+        'Tearoom',
+        'Frituur',
+        'IJssalon',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
@@ -3340,6 +3454,7 @@ declare module '@strapi/strapi' {
       'api::faq.faq': ApiFaqFaq;
       'api::favorite-logie.favorite-logie': ApiFavoriteLogieFavoriteLogie;
       'api::favorite-route.favorite-route': ApiFavoriteRouteFavoriteRoute;
+      'api::instagram-post.instagram-post': ApiInstagramPostInstagramPost;
       'api::invoice-setting.invoice-setting': ApiInvoiceSettingInvoiceSetting;
       'api::location-theme-page.location-theme-page': ApiLocationThemePageLocationThemePage;
       'api::newsletter-subscription.newsletter-subscription': ApiNewsletterSubscriptionNewsletterSubscription;

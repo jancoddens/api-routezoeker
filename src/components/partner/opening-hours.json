@@ -1,0 +1,29 @@
+{
+  "collectionName": "components_partner_opening_hours",
+  "info": {
+    "displayName": "Openingsuren",
+    "description": "Eén rij per dag (twee rijen voor een middagpauze). Dagen zonder rij = gesloten."
+  },
+  "options": {},
+  "attributes": {
+    "day": {
+      "type": "enumeration",
+      "enum": [
+        "Maandag",
+        "Dinsdag",
+        "Woensdag",
+        "Donderdag",
+        "Vrijdag",
+        "Zaterdag",
+        "Zondag"
+      ],
+      "required": true
+    },
+    "opens": {
+      "type": "time"
+    },
+    "closes": {
+      "type": "time"
+    }
+  }
+}
