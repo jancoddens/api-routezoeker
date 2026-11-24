@@ -16,7 +16,8 @@
  * 5. Upsert op source_id ("osm:n123"): bestaande prospects krijgen enkel hun
  *    gegevens bijgewerkt; fase, notities, mails en uitschrijfcode blijven.
  *
- * Prioriteit: A = 5 of meer routes langs de zaak, B = 2-4, C = 1.
+ * Prioriteit op rangorde (score = vooral routes langs de zaak): A = top 500,
+ * B = 501-2500, C = rest.
  *
  * Gebruik (op de server, in de map van de API):
  *   node scripts/import-horeca-prospects.js --dry-run           enkel tellen, niets wegschrijven
@@ -296,7 +297,7 @@ const main = async () => {
 
       prospects.push({
         name: clip(tags.name, 255),
-        priority: count >= 5 ? 'A' : count >= 2 ? 'B' : 'C',
+        priority: 'C',
         city: clip(tags['addr:city'] || tags['addr:place']),
         province: null,
         type: clip(tags.amenity),
@@ -323,9 +324,11 @@ const main = async () => {
     }
 
     prospects.sort((a, b) => b.score - a.score);
+    // Prioriteit op rangorde (zoals bij logies): A = top 500, B = 501-2500, C = rest.
     prospects.forEach((p, i) => {
       p.score = Math.round(p.score * 10) / 10;
       p.rank = i + 1;
+      p.priority = p.rank <= 500 ? 'A' : p.rank <= 2500 ? 'B' : 'C';
     });
 
     log(
