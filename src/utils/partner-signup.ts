@@ -133,6 +133,18 @@ export const createSignupController = (strapi: Core.Strapi, config: SignupConfig
       if (!isEmail(email)) return ctx.badRequest('Dit e-mailadres lijkt niet te kloppen.');
       if (body.accept_terms !== true) return ctx.badRequest('Ga akkoord met de voorwaarden.');
 
+      try {
+        await saveSignup();
+      } catch (error) {
+        strapi.log.error(`[${config.page}] aanmelding kon niet opgeslagen worden`, error);
+        return ctx.internalServerError(
+          'Je aanmelding kon niet opgeslagen worden. Probeer het later opnieuw of mail naar info@routezoeker.com.',
+        );
+      }
+
+      ctx.body = { ok: true };
+
+      async function saveSignup() {
       const prices = await getPackagePrices(strapi);
       const cityDocumentId = await findCityDocumentId(cityName, postalCode);
       const slug = await uniqueSlug(slugify(name));
@@ -147,12 +159,15 @@ export const createSignupController = (strapi: Core.Strapi, config: SignupConfig
           website_url: website || null,
           phone: phone || null,
           email,
-          address: {
-            street: street || null,
-            house_number: houseNumber || null,
-            postal_code: postalCode || null,
-            ...(cityDocumentId ? { city: cityDocumentId } : {}),
-          },
+          // "address" is een herhaalbare component in Strapi: altijd een lijst.
+          address: [
+            {
+              street: street || null,
+              house_number: houseNumber || null,
+              postal_code: postalCode || null,
+              ...(cityDocumentId ? { city: cityDocumentId } : {}),
+            },
+          ],
         } as any,
       });
 
@@ -197,8 +212,7 @@ export const createSignupController = (strapi: Core.Strapi, config: SignupConfig
         ].filter((line) => line !== ''),
         name,
       );
-
-      ctx.body = { ok: true };
+      }
     },
   };
 };
