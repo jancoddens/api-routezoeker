@@ -33,6 +33,10 @@
     "end_date": {
       "type": "date"
     },
+    "no_auto_renewal": {
+      "type": "boolean",
+      "default": false
+    },
     "package": {
       "type": "enumeration",
       "enum": [

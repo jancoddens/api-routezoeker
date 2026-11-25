@@ -39,6 +39,9 @@ type Sub = {
   email: string;
   due: boolean;
   overdue: boolean;
+  noAutoRenewal?: boolean;
+  endDate?: string | null;
+  reviewDue?: boolean;
   openInvoices: number;
   latestInvoice: null | { id: number; number: number; status: string; total: number; dueDate?: string; sentAt?: string };
 };
@@ -273,7 +276,19 @@ const InvoicesPage = () => {
                         </Typography>
                       </Flex>
                     </Td>
-                    <Td><Typography>{s.package || '–'}</Typography></Td>
+                    <Td>
+                      <Flex direction="column" alignItems="flex-start" gap={1}>
+                        <Typography>{s.package || '–'}</Typography>
+                        {s.noAutoRenewal && (
+                          <Badge
+                            backgroundColor={s.reviewDue ? 'danger100' : 'warning100'}
+                            textColor={s.reviewDue ? 'danger700' : 'warning700'}
+                          >
+                            Geen auto-verlenging{s.endDate ? ` · tot ${d(s.endDate)}` : ''}
+                          </Badge>
+                        )}
+                      </Flex>
+                    </Td>
                     <Td><Typography>{d(s.firstRun)}</Typography></Td>
                     <Td>
                       <Typography textColor={s.overdue ? 'danger600' : s.due ? 'warning600' : undefined} fontWeight={s.due ? 'bold' : undefined}>

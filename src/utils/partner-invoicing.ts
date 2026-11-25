@@ -194,7 +194,12 @@ export const getOverview = async (strapi: Core.Strapi) => {
     const pending = subInvoices.find(
       (i: any) => ['concept', 'verstuurd'].includes(i.status_invoice) && String(i.period_start).slice(0, 10) > lastRun,
     );
-    const due = Boolean(isActive && nextRun && String(nextRun) <= horizon && !pending);
+    // Geen automatische verlenging afgesproken: na de einddatum niet als "te factureren" tonen,
+    // eerst contact opnemen met de partner.
+    const noAutoRenewal = Boolean(s.no_auto_renewal);
+    const endDate = s.end_date ? String(s.end_date).slice(0, 10) : null;
+    const pastEnd = Boolean(noAutoRenewal && endDate && nextRun && String(nextRun) > endDate);
+    const due = Boolean(isActive && nextRun && String(nextRun) <= horizon && !pending && !pastEnd);
     return {
       documentId: s.documentId,
       id: s.id,
@@ -214,7 +219,11 @@ export const getOverview = async (strapi: Core.Strapi) => {
       billingVat: s.billing_vat || '',
       notes: s.notes || '',
       due,
-      overdue: Boolean(isActive && nextRun && String(nextRun) < today() && !pending),
+      overdue: Boolean(isActive && nextRun && String(nextRun) < today() && !pending && !pastEnd),
+      noAutoRenewal,
+      endDate,
+      // Einddatum binnen de herinneringstermijn: tijd om de partner te contacteren.
+      reviewDue: Boolean(noAutoRenewal && endDate && endDate <= horizon),
       pendingInvoice: pending ? { id: pending.id, number: pending.number, status: pending.status_invoice } : null,
       openInvoices: open.length,
       latestInvoice: latest && {
@@ -329,7 +338,9 @@ export const createInvoice = async (strapi: Core.Strapi, input: CreateInput) => 
       package: sub.package,
       description:
         input.description ||
-        `Partnerpagina Routezoeker.com – pakket ${sub.package || ''}`.trim() + ` (${nlDate(periodStart)} – ${nlDate(periodEnd)})`,
+        `Partnerpagina Routezoeker.com – pakket ${sub.package || ''}`.trim() +
+          ` (${nlDate(periodStart)} – ${nlDate(periodEnd)})` +
+          (sub.noAutoRenewal ? '. Geen stilzwijgende verlenging.' : ''),
       price: Number(price),
       discount: Number(discount) || 0,
       vat_rate: vatRate,
