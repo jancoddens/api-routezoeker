@@ -239,8 +239,23 @@ export const getOverview = async (strapi: Core.Strapi) => {
 
   rows.sort((a: any, b: any) => String(a.nextRun || '9999').localeCompare(String(b.nextRun || '9999')));
 
+  // Partnerinkomsten van dit jaar uit Financieel (bankbewegingen), niet uit de proforma's:
+  // betalingen van vóór de nieuwe admin hebben hier geen proforma.
+  const year = today().slice(0, 4);
+  const partnerTx = await strapi.db.query('api::transaction.transaction').findMany({
+    where: { direction: 'in', date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` } },
+    select: ['amount', 'subtype'],
+  });
+  const PARTNER_SUBTYPES = ['logie', 'logies', 'folder', 'folders', 'horeca'];
+  const partnerIncome = round2(
+    partnerTx
+      .filter((t: any) => PARTNER_SUBTYPES.includes(String(t.subtype || '').trim().toLowerCase()))
+      .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0),
+  );
+
   return {
     today: today(),
+    partnerIncome,
     settings: {
       vat_rate: Number(settings.vat_rate),
       prices_include_vat: settings.prices_include_vat,

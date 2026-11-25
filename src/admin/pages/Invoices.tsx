@@ -219,7 +219,7 @@ const InvoicesPage = () => {
           <Kpi label="Openstaande proforma's" value={`${openInvoices.length} · ${money(openTotal)}`} />
           <Kpi label="Over vervaldatum" value={String(overdueCount)} tone={overdueCount ? 'danger' : undefined} />
           {toBookCount > 0 && <Kpi label="Te boeken in Octopus" value={String(toBookCount)} tone="danger" />}
-          <Kpi label={`Betaald in ${year}`} value={money(paidThisYear)} />
+          <Kpi label={`Partnerinkomsten ${year}`} value={money((data as any)?.partnerIncome ?? paidThisYear)} />
         </Flex>
 
         <Tabs.Root value={tab} onValueChange={setTab}>
