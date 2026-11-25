@@ -18,6 +18,7 @@ import {
   Tr,
   Typography,
 } from '@strapi/design-system';
+import { BookingDetails } from '../components/BookingDetails';
 
 // Overzicht bankbewegingen (menu "Financieel"), zoals "Transactions overview" in het oude systeem.
 // Alles wordt manueel ingegeven; het saldo is de som van alle inkomsten min uitgaven.
@@ -515,25 +516,41 @@ const BookDialog = ({
   onClose: () => void;
   onSave: (tx: Tx, octopus: string) => void;
 }) => {
+  const { get } = useFetchClient();
   const [octopus, setOctopus] = React.useState(tx.octopusNumber || '');
+  const [info, setInfo] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    get<any>(`${API}/${tx.id}/booking`)
+      .then((res) => setInfo(res.data))
+      .catch(() => setInfo(null))
+      .finally(() => setLoading(false));
+  }, [get, tx.id]);
+
+  const inv = info?.invoice;
+
   return (
     <Modal.Root open onOpenChange={(open: boolean) => !open && onClose()}>
       <Modal.Content>
         <Modal.Header>
-          <Modal.Title>Geboekt in Octopus</Modal.Title>
+          <Modal.Title>Boeken in Octopus – F-ID {tx.number ?? ''}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Flex direction="column" gap={4} alignItems="stretch">
-            <Typography>
-              {tx.date} · {tx.title} · {tx.direction === 'in' ? '+' : '-'} {money(tx.amount)}
-            </Typography>
+            {loading ? (
+              <Typography textColor="neutral600">Gegevens laden…</Typography>
+            ) : (
+              <BookingDetails invoice={inv} tx={tx} />
+            )}
+            {!loading && !inv && tx.direction === 'in' && (
+              <Typography variant="pi" textColor="neutral600">
+                Niet gekoppeld aan een proforma: klantgegevens en btw-opsplitsing zijn niet gekend.
+              </Typography>
+            )}
             <Field.Root
               name="octopus"
-              hint={
-                tx.invoiceNumber
-                  ? `Wordt ook bij proforma ${tx.invoiceNumber} ingevuld.`
-                  : 'Het boekingsnummer of factuurnummer in Octopus.'
-              }
+              hint={inv ? `Wordt ook bij proforma ${inv.number} ingevuld.` : 'Het boekingsnummer of factuurnummer in Octopus.'}
             >
               <Field.Label>Octopus-nummer</Field.Label>
               <Field.Input value={octopus} onChange={(e: any) => setOctopus(e.target.value)} />
@@ -547,7 +564,7 @@ const BookDialog = ({
             {!tx.toBook && (
               <Button variant="danger-light" loading={busy} onClick={() => onSave(tx, '')}>Terug op te boeken</Button>
             )}
-            <Button loading={busy} disabled={!octopus.trim()} onClick={() => onSave(tx, octopus.trim())}>Opslaan</Button>
+            <Button loading={busy} disabled={!octopus.trim()} onClick={() => onSave(tx, octopus.trim())}>Geboekt</Button>
           </Flex>
         </Modal.Footer>
       </Modal.Content>

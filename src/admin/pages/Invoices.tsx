@@ -17,6 +17,7 @@ import {
   Tr,
   Typography,
 } from '@strapi/design-system';
+import { BookingDetails, type InvoiceBooking } from '../components/BookingDetails';
 
 // Overzicht facturatie partnerabonnementen (menu "Facturen").
 // Proforma's maken, mailen, herinneren en als betaald markeren.
@@ -101,6 +102,7 @@ type Dialog =
   | { type: 'create'; sub: Sub }
   | { type: 'send'; invoice: Invoice; kind: 'invoice' | 'reminder'; email?: string }
   | { type: 'paid'; invoice: Invoice }
+  | { type: 'octopus'; invoice: Invoice }
   | { type: 'cancel'; invoice: Invoice }
   | { type: 'online'; sub: Sub; online: boolean }
   | null;
@@ -423,7 +425,12 @@ const InvoicesPage = () => {
                       <Flex gap={1} wrap="wrap">
                         <Button size="S" variant="ghost" onClick={() => openPdf(i.id)}>Bekijk</Button>
                         {i.status === 'concept' && (
-                          <Button size="S" onClick={() => setDialog({ type: 'send', invoice: i, kind: 'invoice' })}>Mail</Button>
+                          <>
+                            <Button size="S" onClick={() => setDialog({ type: 'send', invoice: i, kind: 'invoice' })}>Mail</Button>
+                            <Button size="S" variant="secondary" onClick={() => setDialog({ type: 'octopus', invoice: i })}>
+                              Direct in Octopus
+                            </Button>
+                          </>
                         )}
                         {i.status === 'verstuurd' && (
                           <Button size="S" variant="secondary" onClick={() => setDialog({ type: 'send', invoice: i, kind: 'reminder' })}>
@@ -513,6 +520,25 @@ const InvoicesPage = () => {
                 toggleNotification({ type: 'success', message: `Verstuurd naar ${res.data.to}` });
               } catch (error) {
                 fail(error, 'Versturen mislukt');
+                throw error;
+              }
+            }).catch(() => {})
+          }
+        />
+      )}
+
+      {dialog?.type === 'octopus' && (
+        <OctopusDialog
+          invoice={dialog.invoice}
+          busy={busy}
+          onClose={() => setDialog(null)}
+          onSubmit={(octopus) =>
+            run(async () => {
+              try {
+                await post<any>(`${API}/invoices/${dialog.invoice.id}/octopus`, { octopus });
+                toggleNotification({ type: 'success', message: `Proforma ${dialog.invoice.number} geboekt in Octopus (${octopus})` });
+              } catch (error) {
+                fail(error, 'Opslaan mislukt');
                 throw error;
               }
             }).catch(() => {})
@@ -761,6 +787,57 @@ const SendDialog = ({
           <Button variant="tertiary" onClick={onTest} loading={busy}>Testmail naar mij</Button>
           <Button onClick={() => onSend(to || undefined)} loading={busy}>
             {kind === 'reminder' ? 'Herinnering versturen' : 'Versturen'}
+          </Button>
+        </Modal.Footer>
+      </Modal.Content>
+    </Modal.Root>
+  );
+};
+
+const OctopusDialog = ({
+  invoice,
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  invoice: Invoice;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (octopus: string) => void;
+}) => {
+  const { get } = useFetchClient();
+  const [details, setDetails] = React.useState<InvoiceBooking | null>(null);
+  const [octopus, setOctopus] = React.useState(invoice.octopus || '');
+
+  React.useEffect(() => {
+    get<any>(`${API}/invoices/${invoice.id}/booking`)
+      .then((res) => setDetails(res.data))
+      .catch(() => setDetails(null));
+  }, [get, invoice.id]);
+
+  return (
+    <Modal.Root open onOpenChange={(open: boolean) => !open && onClose()}>
+      <Modal.Content>
+        <Modal.Header>
+          <Modal.Title>Proforma {invoice.number} rechtstreeks in Octopus boeken</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Flex direction="column" gap={4} alignItems="stretch">
+            {details ? <BookingDetails invoice={details} /> : <Typography textColor="neutral600">Gegevens laden…</Typography>}
+            <Typography variant="omega" textColor="neutral600">
+              De proforma wordt niet gemaild. Hij gaat op "verstuurd" (wacht op betaling) met het Octopus-nummer. Koppel de betaling later
+              in Financieel; die is dan meteen geboekt.
+            </Typography>
+            <Field.Root name="octopus">
+              <Field.Label>Octopus-nummer</Field.Label>
+              <Field.Input value={octopus} onChange={(e: any) => setOctopus(e.target.value)} />
+            </Field.Root>
+          </Flex>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="tertiary" onClick={onClose}>Annuleren</Button>
+          <Button loading={busy} disabled={!octopus.trim()} onClick={() => onSubmit(octopus.trim())}>
+            Geboekt in Octopus
           </Button>
         </Modal.Footer>
       </Modal.Content>

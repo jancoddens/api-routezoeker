@@ -2,12 +2,23 @@ import type { Core } from '@strapi/strapi';
 
 import { buildRouteAutofill } from './utils/gpx-autofill';
 import { ensurePartnerInviteCodes } from './utils/partner-invite';
-import { createInvoice, ensureInvoiceSetup, getOverview, renderPdf, sendInvoiceMail, setSubscriptionOnline, updateStatus } from './utils/partner-invoicing';
+import {
+  bookDirectInOctopus,
+  createInvoice,
+  ensureInvoiceSetup,
+  getInvoiceBooking,
+  getOverview,
+  renderPdf,
+  sendInvoiceMail,
+  setSubscriptionOnline,
+  updateStatus,
+} from './utils/partner-invoicing';
 import { ensureProspectSetup, MAX_PER_BATCH, queueMails, sendTestMail, type MailKind } from './utils/prospect-mailer';
 import {
   bookTransaction,
   bookUntil,
   createTransaction,
+  getBooking,
   deleteTransaction,
   importTransactions,
   listTransactions,
@@ -117,6 +128,18 @@ export default {
           config: adminOnly,
         },
         {
+          method: 'GET',
+          path: '/invoices/:id/booking',
+          handler: guard((ctx) => getInvoiceBooking(strapi, Number(ctx.params.id))),
+          config: adminOnly,
+        },
+        {
+          method: 'POST',
+          path: '/invoices/:id/octopus',
+          handler: guard((ctx) => bookDirectInOctopus(strapi, Number(ctx.params.id), ctx.request.body || {})),
+          config: adminOnly,
+        },
+        {
           method: 'POST',
           path: '/subscriptions/:documentId/online',
           handler: guard((ctx) => setSubscriptionOnline(strapi, String(ctx.params.documentId), ctx.request.body?.online === true)),
@@ -138,6 +161,7 @@ export default {
           handler: guard((ctx) => importTransactions(strapi, ctx.request.body?.rows)),
           config: adminOnly,
         },
+        { method: 'GET', path: '/:id/booking', handler: guard((ctx) => getBooking(strapi, Number(ctx.params.id))), config: adminOnly },
         { method: 'POST', path: '/book-until', handler: guard((ctx) => bookUntil(strapi, ctx.request.body || {})), config: adminOnly },
         {
           method: 'POST',

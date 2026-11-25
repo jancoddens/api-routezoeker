@@ -1,5 +1,5 @@
 import type { Core } from '@strapi/strapi';
-import { updateStatus } from './partner-invoicing';
+import { bookingDetails, updateStatus } from './partner-invoicing';
 
 // Bankbewegingen (menu "Financieel", zie src/admin/pages/Transactions.tsx).
 // Bedragen worden altijd positief bewaard; "direction" (in/uit) bepaalt het teken.
@@ -185,4 +185,13 @@ export const bookUntil = async (strapi: Core.Strapi, body: any) => {
     await strapi.db.query(UID).update({ where: { id: row.id }, data: { booked_at: until } });
   }
   return { updated: rows.length };
+};
+
+// Alles wat je nodig hebt om de transactie in Octopus te boeken (venster "Te boeken").
+// Gekoppeld aan een proforma: klant, factuurgegevens, product, prijzen en referentie.
+export const getBooking = async (strapi: Core.Strapi, id: number) => {
+  const row = await strapi.db.query(UID).findOne({ where: { id } });
+  if (!row) throw new Error('Transactie niet gevonden');
+  const i = row.invoice_id ? await strapi.db.query(INVOICE).findOne({ where: { id: row.invoice_id } }) : null;
+  return { tx: toRow(row), invoice: i ? bookingDetails(i) : null };
 };

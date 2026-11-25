@@ -144,7 +144,7 @@ export const ensureInvoiceSetup = async (strapi: Core.Strapi) => {
  * price, discount, vat_rate, amount_excl }], prijzen excl. btw. Zonder `lines`
  * is het een proforma met één regel (de velden op de proforma zelf).
  */
-const invoiceLines = (invoice: any): any[] => {
+export const invoiceLines = (invoice: any): any[] => {
   const raw = typeof invoice?.lines === 'string' ? safeJson(invoice.lines) : invoice?.lines;
   return Array.isArray(raw) ? raw : [];
 };
@@ -724,3 +724,69 @@ export const setSubscriptionOnline = async (strapi: Core.Strapi, documentId: str
   return { documentId, online };
 };
 
+
+// ---------- boeken in Octopus ----------
+
+/** Gegevens om een proforma als officiële factuur in Octopus te boeken. */
+export const bookingDetails = (i: any) => {
+  const lines = invoiceLines(i);
+  const day = (v: any) => (v ? String(v).slice(0, 10) : null);
+  return {
+    id: i.id,
+    number: i.number,
+    status: i.status_invoice,
+    reference: structuredReference(Number(i.number)),
+    customer: i.billing_name || i.partner_name || '',
+    address: i.billing_address || '',
+    vat: i.billing_vat || '',
+    email: i.billing_email || '',
+    invoiceDate: day(i.invoice_date),
+    dueDate: day(i.due_date),
+    paidAt: day(i.paid_at),
+    periodStart: day(i.period_start),
+    periodEnd: day(i.period_end),
+    package: i.package || '',
+    lines: lines.length
+      ? lines.map((l: any) => ({
+          description: l.description || '',
+          amountExcl: Number(l.amount_excl ?? l.price ?? 0),
+          discount: Number(l.discount || 0),
+        }))
+      : [{ description: i.description || '', amountExcl: Number(i.total_excl || 0), discount: Number(i.discount || 0) }],
+    vatRate: Number(i.vat_rate || 0),
+    totalExcl: Number(i.total_excl || 0),
+    totalVat: Number(i.total_vat || 0),
+    totalIncl: Number(i.total_incl || 0),
+    octopus: i.octopus_number || '',
+  };
+};
+
+export const getInvoiceBooking = async (strapi: Core.Strapi, id: number) => {
+  const invoice = await strapi.db.query(INVOICE).findOne({ where: { id } });
+  if (!invoice) throw new Error('Proforma niet gevonden');
+  return bookingDetails(invoice);
+};
+
+/**
+ * Proforma niet mailen maar meteen als factuur in Octopus boeken (Octopus verstuurt de factuur).
+ * De proforma gaat van concept naar "verstuurd" (wacht op betaling) en krijgt het Octopus-nummer,
+ * zodat de betaling later gewoon gekoppeld kan worden en niet nog eens "te boeken" is.
+ */
+export const bookDirectInOctopus = async (strapi: Core.Strapi, id: number, body: any) => {
+  const invoice = await strapi.db.query(INVOICE).findOne({ where: { id } });
+  if (!invoice) throw new Error('Proforma niet gevonden');
+  if (invoice.status_invoice === 'geannuleerd') throw new Error('Deze proforma is geannuleerd');
+  const octopus = String(body?.octopus || '').trim().slice(0, 100);
+  if (!octopus) throw new Error('Vul het Octopus-nummer in');
+  const data: any = { octopus_number: octopus };
+  let line = `Rechtstreeks geboekt in Octopus (${octopus}), geen proforma gemaild`;
+  if (invoice.status_invoice === 'concept') {
+    data.status_invoice = 'verstuurd';
+    data.sent_at = new Date();
+    data.sent_to = 'via Octopus';
+  } else {
+    line = `Octopus-factuur ${octopus}`;
+  }
+  data.history = appendHistory(invoice.history, line);
+  return strapi.db.query(INVOICE).update({ where: { id }, data });
+};
