@@ -205,6 +205,20 @@ export interface PageBlocksList extends Struct.ComponentSchema {
   };
 }
 
+export interface PageBlocksNodePlanner extends Struct.ComponentSchema {
+  collectionName: 'components_page_blocks_node_planners';
+  info: {
+    description: 'Promoblok voor de knooppuntenplanner (zelfde blok als op de homepagina)';
+    displayName: 'node_planner';
+  };
+  attributes: {
+    mode: Schema.Attribute.Enumeration<['beide', 'wandelen', 'fietsen']> &
+      Schema.Attribute.DefaultTo<'beide'>;
+    text: Schema.Attribute.Text;
+    title: Schema.Attribute.String;
+  };
+}
+
 export interface PageBlocksPartner extends Struct.ComponentSchema {
   collectionName: 'components_page_blocks_partners';
   info: {
@@ -396,6 +410,8 @@ export interface PageBlocksTextSection extends Struct.ComponentSchema {
     heading_level: Schema.Attribute.Enumeration<
       ['default', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
     > &
+      Schema.Attribute.DefaultTo<'default'>;
+    layout: Schema.Attribute.Enumeration<['default', 'steps']> &
       Schema.Attribute.DefaultTo<'default'>;
     max_width: Schema.Attribute.Enumeration<
       ['default', 'narrow', 'wide', 'full']
@@ -660,6 +676,7 @@ declare module '@strapi/strapi' {
       'page-blocks.image-gallery': PageBlocksImageGallery;
       'page-blocks.image-text': PageBlocksImageText;
       'page-blocks.list': PageBlocksList;
+      'page-blocks.node-planner': PageBlocksNodePlanner;
       'page-blocks.partner': PageBlocksPartner;
       'page-blocks.photo-carousel': PageBlocksPhotoCarousel;
       'page-blocks.product-card': PageBlocksProductCard;

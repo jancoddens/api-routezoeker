@@ -667,6 +667,7 @@ export interface ApiBlogPostBlogPost extends Struct.CollectionTypeSchema {
         'page-blocks.product-card',
         'page-blocks.photo-carousel',
         'page-blocks.route-block',
+        'page-blocks.node-planner',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
@@ -1599,6 +1600,7 @@ export interface ApiPagePage extends Struct.CollectionTypeSchema {
         'page-blocks.article-grid',
         'page-blocks.partner',
         'page-blocks.search',
+        'page-blocks.node-planner',
       ]
     > &
       Schema.Attribute.SetPluginOptions<{
@@ -1741,6 +1743,8 @@ export interface ApiPartnerSubscriptionPartnerSubscription
       'api::partner-subscription.partner-subscription'
     > &
       Schema.Attribute.Private;
+    no_auto_renewal: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     notes: Schema.Attribute.Text;
     package: Schema.Attribute.Enumeration<
       [
@@ -2899,6 +2903,49 @@ export interface ApiThemeTheme extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiTransactionTransaction extends Struct.CollectionTypeSchema {
+  collectionName: 'transactions';
+  info: {
+    description: 'Bankbewegingen (inkomsten en uitgaven), beheerd via menu Financieel';
+    displayName: 'Transactie';
+    pluralName: 'transactions';
+    singularName: 'transaction';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    amount: Schema.Attribute.Decimal & Schema.Attribute.Required;
+    attachment: Schema.Attribute.String;
+    booked_at: Schema.Attribute.Date;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    date: Schema.Attribute.Date & Schema.Attribute.Required;
+    direction: Schema.Attribute.Enumeration<['in', 'uit']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'in'>;
+    invoice_date: Schema.Attribute.Date;
+    invoice_id: Schema.Attribute.Integer;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::transaction.transaction'
+    > &
+      Schema.Attribute.Private;
+    notes: Schema.Attribute.Text;
+    number: Schema.Attribute.Integer;
+    octopus_number: Schema.Attribute.String;
+    order_id: Schema.Attribute.Integer;
+    publishedAt: Schema.Attribute.DateTime;
+    subtype: Schema.Attribute.String;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiUserProfileUserProfile extends Struct.CollectionTypeSchema {
   collectionName: 'user_profiles';
   info: {
@@ -3487,6 +3534,7 @@ declare module '@strapi/strapi' {
       'api::route.route': ApiRouteRoute;
       'api::tag.tag': ApiTagTag;
       'api::theme.theme': ApiThemeTheme;
+      'api::transaction.transaction': ApiTransactionTransaction;
       'api::user-profile.user-profile': ApiUserProfileUserProfile;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
