@@ -62,6 +62,7 @@ type Invoice = {
   reminders: number;
   octopus?: string;
   overdue?: boolean;
+  toBook?: boolean;
   email?: string;
 };
 
@@ -111,7 +112,7 @@ const InvoicesPage = () => {
   const [loading, setLoading] = React.useState(true);
   const [tab, setTab] = React.useState('subs');
   const [filter, setFilter] = React.useState<'all' | 'due' | 'active' | 'offline'>('due');
-  const [invoiceFilter, setInvoiceFilter] = React.useState<'open' | 'all'>('open');
+  const [invoiceFilter, setInvoiceFilter] = React.useState<'open' | 'tobook' | 'all'>('open');
   const [search, setSearch] = React.useState('');
   const [dialog, setDialog] = React.useState<Dialog>(null);
   const [busy, setBusy] = React.useState(false);
@@ -173,6 +174,7 @@ const InvoicesPage = () => {
   const invoices = (data?.invoices || []).filter((i) => {
     if (q && !`${i.number} ${i.name} ${i.octopus || ''}`.toLowerCase().includes(q)) return false;
     if (invoiceFilter === 'open') return i.status === 'concept' || i.status === 'verstuurd';
+    if (invoiceFilter === 'tobook') return Boolean(i.toBook);
     return true;
   });
 
@@ -181,6 +183,7 @@ const InvoicesPage = () => {
   const openInvoices = (data?.invoices || []).filter((i) => i.status === 'concept' || i.status === 'verstuurd');
   const openTotal = openInvoices.reduce((sum, i) => sum + i.total, 0);
   const overdueCount = openInvoices.filter((i) => i.overdue).length;
+  const toBookCount = (data?.invoices || []).filter((i) => i.toBook).length;
   const year = (data?.today || '').slice(0, 4);
   const paidThisYear = (data?.invoices || [])
     .filter((i) => i.status === 'betaald' && String(i.paidAt || '').startsWith(year))
@@ -213,6 +216,7 @@ const InvoicesPage = () => {
           {reviewCount > 0 && <Kpi label="Te contacteren (loopt af)" value={String(reviewCount)} tone="danger" />}
           <Kpi label="Openstaande proforma's" value={`${openInvoices.length} · ${money(openTotal)}`} />
           <Kpi label="Over vervaldatum" value={String(overdueCount)} tone={overdueCount ? 'danger' : undefined} />
+          {toBookCount > 0 && <Kpi label="Te boeken in Octopus" value={String(toBookCount)} tone="danger" />}
           <Kpi label={`Betaald in ${year}`} value={money(paidThisYear)} />
         </Flex>
 
@@ -357,6 +361,9 @@ const InvoicesPage = () => {
               <FilterButton active={invoiceFilter === 'open'} onClick={() => setInvoiceFilter('open')}>
                 Open ({openInvoices.length})
               </FilterButton>
+              <FilterButton active={invoiceFilter === 'tobook'} onClick={() => setInvoiceFilter('tobook')}>
+                Te boeken in Octopus ({toBookCount})
+              </FilterButton>
               <FilterButton active={invoiceFilter === 'all'} onClick={() => setInvoiceFilter('all')}>
                 Alles ({data?.invoices.length || 0})
               </FilterButton>
@@ -398,6 +405,9 @@ const InvoicesPage = () => {
                       <Flex gap={1}>
                         <StatusBadge status={i.status} />
                         {i.reminders > 0 && <Badge>{i.reminders}× herinnerd</Badge>}
+                        {i.toBook && (
+                          <Badge backgroundColor="warning100" textColor="warning700">Te boeken in Octopus</Badge>
+                        )}
                       </Flex>
                     </Td>
                     <Td>

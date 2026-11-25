@@ -266,6 +266,8 @@ export const getOverview = async (strapi: Core.Strapi) => {
       reminders: i.reminder_count || 0,
       octopus: i.octopus_number,
       overdue: i.status_invoice === 'verstuurd' && i.due_date && String(i.due_date) < today(),
+      // Betaald maar nog geen officiële factuur in Octopus.
+      toBook: i.status_invoice === 'betaald' && !i.octopus_number,
     })),
   };
 };

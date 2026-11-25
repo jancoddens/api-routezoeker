@@ -50,6 +50,9 @@
     },
     "attachment": {
       "type": "string"
+    },
+    "invoice_id": {
+      "type": "integer"
     }
   }
 }

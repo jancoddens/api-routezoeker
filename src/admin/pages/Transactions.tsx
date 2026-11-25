@@ -36,9 +36,13 @@ type Tx = {
   invoiceDate?: string | null;
   orderId?: number | null;
   attachment?: string;
+  invoiceId?: number | null;
+  invoiceNumber?: number | null;
 };
 
-type Data = { balance: number; subtypes: string[]; items: Tx[] };
+type OpenInvoice = { id: number; number: number; name: string; total: number };
+
+type Data = { balance: number; subtypes: string[]; items: Tx[]; openInvoices: OpenInvoice[] };
 
 type SortKey = 'number' | 'date' | 'title' | 'direction' | 'subtype' | 'amount';
 
@@ -225,6 +229,9 @@ const TransactionsPage = () => {
                   <Flex direction="column" alignItems="flex-start">
                     <Typography>{t.title}</Typography>
                     {t.notes && <Typography variant="pi" textColor="neutral500">{t.notes}</Typography>}
+                    {t.invoiceNumber && (
+                      <Typography variant="pi" textColor="success600">Proforma {t.invoiceNumber} (betaald)</Typography>
+                    )}
                     {(t.attachment || t.orderId) && (
                       <Typography variant="pi" textColor="neutral500">
                         {[t.attachment && `Bewijsstuk: ${t.attachment}`, t.orderId && `order ${t.orderId}`].filter(Boolean).join(' · ')}
@@ -283,7 +290,14 @@ const TransactionsPage = () => {
       </Layouts.Content>
 
       {editing && (
-        <EditDialog tx={editing} subtypes={data?.subtypes || []} busy={busy} onClose={() => setEditing(null)} onSave={save} />
+        <EditDialog
+          tx={editing}
+          subtypes={data?.subtypes || []}
+          openInvoices={data?.openInvoices || []}
+          busy={busy}
+          onClose={() => setEditing(null)}
+          onSave={save}
+        />
       )}
 
       {deleting && (
@@ -312,12 +326,14 @@ const TransactionsPage = () => {
 const EditDialog = ({
   tx,
   subtypes,
+  openInvoices,
   busy,
   onClose,
   onSave,
 }: {
   tx: Partial<Tx>;
   subtypes: string[];
+  openInvoices: OpenInvoice[];
   busy: boolean;
   onClose: () => void;
   onSave: (tx: Partial<Tx>) => void;
@@ -328,6 +344,21 @@ const EditDialog = ({
   const [subtype, setSubtype] = React.useState(tx.subtype || '');
   const [amount, setAmount] = React.useState(tx.amount != null ? String(tx.amount) : '');
   const [notes, setNotes] = React.useState(tx.notes || '');
+  const [invoiceId, setInvoiceId] = React.useState(tx.invoiceId ? String(tx.invoiceId) : '');
+  const amountNum = Number(amount.replace(',', '.')) || 0;
+  // Proforma's met hetzelfde bedrag eerst.
+  const invoiceOptions = [...openInvoices].sort(
+    (a, b) => Number(Math.abs(b.total - amountNum) < 0.01) - Number(Math.abs(a.total - amountNum) < 0.01) || b.number - a.number,
+  );
+  const pickInvoice = (value: string) => {
+    setInvoiceId(value);
+    const inv = openInvoices.find((i) => String(i.id) === value);
+    if (inv) {
+      if (!title.trim()) setTitle(inv.name);
+      if (!amount) setAmount(String(inv.total));
+      if (!subtype) setSubtype('Logie');
+    }
+  };
 
   return (
     <Modal.Root open onOpenChange={(open: boolean) => !open && onClose()}>
@@ -367,6 +398,30 @@ const EditDialog = ({
               </datalist>
               <Field.Hint />
             </Field.Root>
+            {direction === 'in' && !tx.invoiceId && (
+              <Field.Root
+                name="invoice"
+                hint="Kies je een proforma, dan gaat die op betaald en wordt het abonnement verlengd. Daarna staat hij bij Facturen als 'Te boeken in Octopus'."
+              >
+                <Field.Label>Betaling van proforma (optioneel)</Field.Label>
+                <SingleSelect
+                  value={invoiceId}
+                  placeholder="Geen proforma"
+                  onClear={() => setInvoiceId('')}
+                  onChange={(v: any) => pickInvoice(String(v))}
+                >
+                  {invoiceOptions.map((i) => (
+                    <SingleSelectOption key={i.id} value={String(i.id)}>
+                      {`${i.number} · ${i.name} · ${money(i.total)}${amountNum && Math.abs(i.total - amountNum) < 0.01 ? ' ✓ zelfde bedrag' : ''}`}
+                    </SingleSelectOption>
+                  ))}
+                </SingleSelect>
+                <Field.Hint />
+              </Field.Root>
+            )}
+            {tx.invoiceNumber && (
+              <Typography variant="omega" textColor="success600">Gekoppeld aan proforma {tx.invoiceNumber} (betaald).</Typography>
+            )}
             <Field.Root name="notes">
               <Field.Label>Notitie (optioneel)</Field.Label>
               <Field.Input value={notes} onChange={(e: any) => setNotes(e.target.value)} />
@@ -378,7 +433,18 @@ const EditDialog = ({
           <Button
             loading={busy}
             disabled={!date || !title.trim() || !amount}
-            onClick={() => onSave({ id: tx.id, date, title, direction, subtype, amount: amount.replace(',', '.') as any, notes })}
+            onClick={() =>
+              onSave({
+                id: tx.id,
+                date,
+                title,
+                direction,
+                subtype,
+                amount: amount.replace(',', '.') as any,
+                notes,
+                ...(!tx.invoiceId && invoiceId && direction === 'in' ? { invoiceId: Number(invoiceId) } : {}),
+              } as any)
+            }
           >
             Opslaan
           </Button>
