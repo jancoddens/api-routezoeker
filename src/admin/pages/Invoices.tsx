@@ -164,7 +164,8 @@ const InvoicesPage = () => {
   const q = search.trim().toLowerCase();
   const subs = (data?.subscriptions || []).filter((s) => {
     if (q && !`${s.id} ${s.name} ${s.email} ${s.package}`.toLowerCase().includes(q)) return false;
-    if (filter === 'due') return s.due;
+    // Ook abonnementen zonder automatische verlenging die bijna aflopen: eerst de partner contacteren.
+    if (filter === 'due') return s.due || Boolean(s.reviewDue);
     if (filter === 'active') return s.status === 'active';
     if (filter === 'offline') return s.status === 'paused';
     return true;
@@ -176,6 +177,7 @@ const InvoicesPage = () => {
   });
 
   const dueCount = (data?.subscriptions || []).filter((s) => s.due).length;
+  const reviewCount = (data?.subscriptions || []).filter((s) => s.reviewDue).length;
   const openInvoices = (data?.invoices || []).filter((i) => i.status === 'concept' || i.status === 'verstuurd');
   const openTotal = openInvoices.reduce((sum, i) => sum + i.total, 0);
   const overdueCount = openInvoices.filter((i) => i.overdue).length;
@@ -208,6 +210,7 @@ const InvoicesPage = () => {
 
         <Flex gap={4} marginBottom={6} wrap="wrap">
           <Kpi label="Te factureren (30 dagen)" value={String(dueCount)} />
+          {reviewCount > 0 && <Kpi label="Te contacteren (loopt af)" value={String(reviewCount)} tone="danger" />}
           <Kpi label="Openstaande proforma's" value={`${openInvoices.length} · ${money(openTotal)}`} />
           <Kpi label="Over vervaldatum" value={String(overdueCount)} tone={overdueCount ? 'danger' : undefined} />
           <Kpi label={`Betaald in ${year}`} value={money(paidThisYear)} />
@@ -236,7 +239,7 @@ const InvoicesPage = () => {
           <Tabs.Content value="subs">
             <Flex gap={2} paddingTop={4} paddingBottom={4}>
               <FilterButton active={filter === 'due'} onClick={() => setFilter('due')}>
-                Te factureren ({dueCount})
+                Te factureren ({dueCount}){reviewCount ? ` · te contacteren (${reviewCount})` : ''}
               </FilterButton>
               <FilterButton active={filter === 'active'} onClick={() => setFilter('active')}>
                 Actief
