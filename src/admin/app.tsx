@@ -1,6 +1,6 @@
 import type { StrapiApp } from '@strapi/strapi/admin';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
-import { FilePdf as FileIcon } from '@strapi/icons';
+import { ChartPie as FinanceIcon, FilePdf as FileIcon } from '@strapi/icons';
 
 // Knoppen in de lijst Prospects (Content Manager): vink prospects aan en kies
 // "Verstuur eerste mail", "Verstuur opvolgmail" of "Testmail naar mij".
@@ -120,6 +120,15 @@ export default {
       permissions: [],
       position: 3,
       Component: () => import('./pages/Invoices'),
+    });
+    // Menu "Financieel": bankbewegingen (inkomsten/uitgaven), zoals in het oude systeem.
+    app.addMenuLink({
+      to: 'transactions',
+      icon: FinanceIcon,
+      intlLabel: { id: 'transactions.menu', defaultMessage: 'Financieel' },
+      permissions: [],
+      position: 4,
+      Component: () => import('./pages/Transactions'),
     });
   },
   bootstrap(app: StrapiApp) {

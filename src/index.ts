@@ -4,6 +4,7 @@ import { buildRouteAutofill } from './utils/gpx-autofill';
 import { ensurePartnerInviteCodes } from './utils/partner-invite';
 import { createInvoice, ensureInvoiceSetup, getOverview, renderPdf, sendInvoiceMail, setSubscriptionOnline, updateStatus } from './utils/partner-invoicing';
 import { ensureProspectSetup, MAX_PER_BATCH, queueMails, sendTestMail, type MailKind } from './utils/prospect-mailer';
+import { createTransaction, deleteTransaction, importTransactions, listTransactions, updateTransaction } from './utils/transactions';
 
 export default {
   /**
@@ -113,6 +114,29 @@ export default {
           handler: guard((ctx) => setSubscriptionOnline(strapi, String(ctx.params.documentId), ctx.request.body?.online === true)),
           config: adminOnly,
         },
+      ],
+    } as any);
+
+    // Bankbewegingen (menu "Financieel", zie src/admin/pages/Transactions.tsx).
+    strapi.server.routes({
+      type: 'admin',
+      prefix: '/transactions',
+      routes: [
+        { method: 'GET', path: '/', handler: guard(() => listTransactions(strapi)), config: adminOnly },
+        { method: 'POST', path: '/', handler: guard((ctx) => createTransaction(strapi, ctx.request.body || {})), config: adminOnly },
+        {
+          method: 'POST',
+          path: '/import',
+          handler: guard((ctx) => importTransactions(strapi, ctx.request.body?.rows)),
+          config: adminOnly,
+        },
+        {
+          method: 'PUT',
+          path: '/:id',
+          handler: guard((ctx) => updateTransaction(strapi, Number(ctx.params.id), ctx.request.body || {})),
+          config: adminOnly,
+        },
+        { method: 'DELETE', path: '/:id', handler: guard((ctx) => deleteTransaction(strapi, Number(ctx.params.id))), config: adminOnly },
       ],
     } as any);
   },

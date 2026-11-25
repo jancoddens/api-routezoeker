@@ -1,0 +1,55 @@
+{
+  "kind": "collectionType",
+  "collectionName": "transactions",
+  "info": {
+    "singularName": "transaction",
+    "pluralName": "transactions",
+    "displayName": "Transactie",
+    "description": "Bankbewegingen (inkomsten en uitgaven), beheerd via menu Financieel"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "number": {
+      "type": "integer"
+    },
+    "date": {
+      "type": "date",
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "direction": {
+      "type": "enumeration",
+      "enum": [
+        "in",
+        "uit"
+      ],
+      "default": "in",
+      "required": true
+    },
+    "subtype": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "decimal",
+      "required": true
+    },
+    "notes": {
+      "type": "text"
+    },
+    "invoice_date": {
+      "type": "date"
+    },
+    "order_id": {
+      "type": "integer"
+    },
+    "attachment": {
+      "type": "string"
+    }
+  }
+}

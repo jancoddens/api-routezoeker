@@ -1,0 +1,400 @@
+import * as React from 'react';
+import { Layouts, Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
+import {
+  Badge,
+  Box,
+  Button,
+  Field,
+  Flex,
+  Modal,
+  Searchbar,
+  SingleSelect,
+  SingleSelectOption,
+  Table,
+  Tbody,
+  Td,
+  Th,
+  Thead,
+  Tr,
+  Typography,
+} from '@strapi/design-system';
+
+// Overzicht bankbewegingen (menu "Financieel"), zoals "Transactions overview" in het oude systeem.
+// Alles wordt manueel ingegeven; het saldo is de som van alle inkomsten min uitgaven.
+
+const API = '/transactions';
+
+type Tx = {
+  id: number;
+  number: number | null;
+  date: string | null;
+  title: string;
+  direction: 'in' | 'uit';
+  subtype: string;
+  amount: number;
+  notes: string;
+  invoiceDate?: string | null;
+  orderId?: number | null;
+  attachment?: string;
+};
+
+type Data = { balance: number; subtypes: string[]; items: Tx[] };
+
+type SortKey = 'number' | 'date' | 'title' | 'direction' | 'subtype' | 'amount';
+
+const money = (n?: number | null) =>
+  n == null ? '–' : `€ ${Number(n).toLocaleString('nl-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const today = () => new Date().toISOString().slice(0, 10);
+const signed = (t: Tx) => (t.direction === 'uit' ? -t.amount : t.amount);
+
+const TransactionsPage = () => {
+  const { get, post, put, del } = useFetchClient();
+  const { toggleNotification } = useNotification();
+  const [data, setData] = React.useState<Data | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [search, setSearch] = React.useState('');
+  const [perPage, setPerPage] = React.useState(25);
+  const [page, setPage] = React.useState(1);
+  const [sort, setSort] = React.useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: false });
+  const [editing, setEditing] = React.useState<Partial<Tx> | null>(null);
+  const [deleting, setDeleting] = React.useState<Tx | null>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  const fail = (error: any, fallback: string) =>
+    toggleNotification({ type: 'danger', message: error?.response?.data?.error?.message || error?.message || fallback });
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await get<any>(API);
+      setData(res.data);
+    } catch (error) {
+      fail(error, 'Laden mislukt');
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [get]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  React.useEffect(() => setPage(1), [search, perPage]);
+
+  const q = search.trim().toLowerCase();
+  const filtered = (data?.items || []).filter(
+    (t) => !q || `${t.number ?? ''} ${t.date} ${t.title} ${t.subtype} ${t.notes} ${t.amount} ${t.attachment || ''}`.toLowerCase().includes(q),
+  );
+  const sorted = [...filtered].sort((a, b) => {
+    const k = sort.key;
+    const va: any = k === 'amount' ? signed(a) : (a as any)[k] ?? '';
+    const vb: any = k === 'amount' ? signed(b) : (b as any)[k] ?? '';
+    const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'nl');
+    return (sort.asc ? cmp : -cmp) || (b.number || 0) - (a.number || 0);
+  });
+  const pages = Math.max(1, Math.ceil(sorted.length / perPage));
+  const shown = sorted.slice((page - 1) * perPage, page * perPage);
+
+  const year = today().slice(0, 4);
+  const thisYear = (data?.items || []).filter((t) => String(t.date || '').startsWith(year));
+  const inYear = thisYear.filter((t) => t.direction === 'in').reduce((s, t) => s + t.amount, 0);
+  const outYear = thisYear.filter((t) => t.direction === 'uit').reduce((s, t) => s + t.amount, 0);
+  const filteredTotal = filtered.reduce((s, t) => s + signed(t), 0);
+
+  const save = async (tx: Partial<Tx>) => {
+    setBusy(true);
+    try {
+      if (tx.id) await put(`${API}/${tx.id}`, tx);
+      else await post(API, tx);
+      toggleNotification({ type: 'success', message: tx.id ? 'Transactie aangepast' : 'Transactie toegevoegd' });
+      setEditing(null);
+      await load();
+    } catch (error) {
+      fail(error, 'Opslaan mislukt');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (tx: Tx) => {
+    setBusy(true);
+    try {
+      await del(`${API}/${tx.id}`);
+      toggleNotification({ type: 'success', message: 'Transactie verwijderd' });
+      setDeleting(null);
+      await load();
+    } catch (error) {
+      fail(error, 'Verwijderen mislukt');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const SortTh = ({ k, children }: { k: SortKey; children: React.ReactNode }) => (
+    <Th>
+      <button
+        type="button"
+        onClick={() => setSort((s) => ({ key: k, asc: s.key === k ? !s.asc : k === 'title' || k === 'subtype' }))}
+        style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+      >
+        <Typography variant="sigma" textColor="neutral600">
+          {children} {sort.key === k ? (sort.asc ? '▲' : '▼') : ''}
+        </Typography>
+      </button>
+    </Th>
+  );
+
+  return (
+    <Page.Main>
+      <Page.Title>Financieel</Page.Title>
+      <Layouts.Header
+        title="Transacties"
+        subtitle="Bankbewegingen van Routezoeker (inkomsten en uitgaven)."
+        primaryAction={
+          <Button onClick={() => setEditing({ date: today(), direction: 'in' })}>+ Nieuwe transactie</Button>
+        }
+        secondaryAction={
+          <Button variant="tertiary" onClick={load} loading={loading}>
+            Vernieuwen
+          </Button>
+        }
+      />
+      <Layouts.Content>
+        <Flex gap={4} marginBottom={6} wrap="wrap">
+          <Kpi label="Saldo" value={money(data?.balance ?? null)} tone={(data?.balance || 0) < 0 ? 'danger' : undefined} />
+          <Kpi label={`Inkomsten ${year}`} value={money(inYear)} />
+          <Kpi label={`Uitgaven ${year}`} value={money(outYear)} />
+          <Kpi label={`Resultaat ${year}`} value={money(inYear - outYear)} tone={inYear - outYear < 0 ? 'danger' : undefined} />
+        </Flex>
+
+        <Flex justifyContent="space-between" alignItems="flex-end" gap={4} wrap="wrap" paddingBottom={4}>
+          <Flex gap={2} alignItems="center">
+            <Box width="90px">
+              <SingleSelect
+                aria-label="Per pagina"
+                value={String(perPage)}
+                onChange={(v: any) => setPerPage(Number(v))}
+              >
+                {[10, 25, 50, 100].map((n) => (
+                  <SingleSelectOption key={n} value={String(n)}>
+                    {n}
+                  </SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Typography textColor="neutral600">per pagina</Typography>
+            {q && (
+              <Typography textColor="neutral600">
+                · {filtered.length} resultaten, totaal {money(filteredTotal)}
+              </Typography>
+            )}
+          </Flex>
+          <Box width="280px">
+            <Searchbar
+              name="search"
+              value={search}
+              onChange={(e: any) => setSearch(e.target.value)}
+              onClear={() => setSearch('')}
+              clearLabel="Wissen"
+              placeholder="Zoeken…"
+            >
+              Zoeken
+            </Searchbar>
+          </Box>
+        </Flex>
+
+        <Table colCount={7} rowCount={shown.length + 1}>
+          <Thead>
+            <Tr>
+              <SortTh k="number">F-ID</SortTh>
+              <SortTh k="date">Datum</SortTh>
+              <SortTh k="title">Titel</SortTh>
+              <SortTh k="direction">Type</SortTh>
+              <SortTh k="subtype">Subtype</SortTh>
+              <SortTh k="amount">Bedrag</SortTh>
+              <Th><Typography variant="sigma">Acties</Typography></Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {shown.map((t) => (
+              <Tr key={t.id}>
+                <Td><Typography>{t.number ?? '–'}</Typography></Td>
+                <Td><Typography>{t.date}</Typography></Td>
+                <Td>
+                  <Flex direction="column" alignItems="flex-start">
+                    <Typography>{t.title}</Typography>
+                    {t.notes && <Typography variant="pi" textColor="neutral500">{t.notes}</Typography>}
+                    {(t.attachment || t.orderId) && (
+                      <Typography variant="pi" textColor="neutral500">
+                        {[t.attachment && `Bewijsstuk: ${t.attachment}`, t.orderId && `order ${t.orderId}`].filter(Boolean).join(' · ')}
+                      </Typography>
+                    )}
+                  </Flex>
+                </Td>
+                <Td>
+                  {t.direction === 'in' ? (
+                    <Badge backgroundColor="success100" textColor="success700">↑ In</Badge>
+                  ) : (
+                    <Badge backgroundColor="danger100" textColor="danger700">↓ Uit</Badge>
+                  )}
+                </Td>
+                <Td><Typography>{t.subtype || '–'}</Typography></Td>
+                <Td>
+                  <Typography textColor={t.direction === 'in' ? 'success600' : 'danger600'} fontWeight="bold">
+                    {t.direction === 'in' ? '+ ' : '- '}
+                    {money(t.amount)}
+                  </Typography>
+                </Td>
+                <Td>
+                  <Flex gap={2}>
+                    <Button size="S" variant="secondary" onClick={() => setEditing(t)}>Bewerken</Button>
+                    <Button size="S" variant="danger-light" onClick={() => setDeleting(t)}>Verwijderen</Button>
+                  </Flex>
+                </Td>
+              </Tr>
+            ))}
+            {!shown.length && (
+              <Tr>
+                <Td colSpan={7}>
+                  <Box padding={4}>
+                    <Typography textColor="neutral600">{loading ? 'Laden…' : 'Geen transacties gevonden.'}</Typography>
+                  </Box>
+                </Td>
+              </Tr>
+            )}
+          </Tbody>
+        </Table>
+
+        {pages > 1 && (
+          <Flex justifyContent="space-between" paddingTop={4}>
+            <Typography textColor="neutral600">
+              {(page - 1) * perPage + 1}–{Math.min(page * perPage, sorted.length)} van {sorted.length}
+            </Typography>
+            <Flex gap={2}>
+              <Button size="S" variant="tertiary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Vorige</Button>
+              <Typography>
+                {page} / {pages}
+              </Typography>
+              <Button size="S" variant="tertiary" disabled={page >= pages} onClick={() => setPage(page + 1)}>Volgende</Button>
+            </Flex>
+          </Flex>
+        )}
+      </Layouts.Content>
+
+      {editing && (
+        <EditDialog tx={editing} subtypes={data?.subtypes || []} busy={busy} onClose={() => setEditing(null)} onSave={save} />
+      )}
+
+      {deleting && (
+        <Modal.Root open onOpenChange={(open: boolean) => !open && setDeleting(null)}>
+          <Modal.Content>
+            <Modal.Header>
+              <Modal.Title>Transactie {deleting.number ?? ''} verwijderen?</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <Typography>
+                {deleting.date} · {deleting.title} · {deleting.direction === 'in' ? '+' : '-'} {money(deleting.amount)}. Dit kan
+                niet ongedaan gemaakt worden.
+              </Typography>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" onClick={() => setDeleting(null)}>Annuleren</Button>
+              <Button variant="danger" loading={busy} onClick={() => remove(deleting)}>Verwijderen</Button>
+            </Modal.Footer>
+          </Modal.Content>
+        </Modal.Root>
+      )}
+    </Page.Main>
+  );
+};
+
+const EditDialog = ({
+  tx,
+  subtypes,
+  busy,
+  onClose,
+  onSave,
+}: {
+  tx: Partial<Tx>;
+  subtypes: string[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (tx: Partial<Tx>) => void;
+}) => {
+  const [date, setDate] = React.useState(tx.date || today());
+  const [title, setTitle] = React.useState(tx.title || '');
+  const [direction, setDirection] = React.useState<'in' | 'uit'>(tx.direction || 'in');
+  const [subtype, setSubtype] = React.useState(tx.subtype || '');
+  const [amount, setAmount] = React.useState(tx.amount != null ? String(tx.amount) : '');
+  const [notes, setNotes] = React.useState(tx.notes || '');
+
+  return (
+    <Modal.Root open onOpenChange={(open: boolean) => !open && onClose()}>
+      <Modal.Content>
+        <Modal.Header>
+          <Modal.Title>{tx.id ? `Transactie ${tx.number ?? ''} bewerken` : 'Nieuwe transactie'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Flex direction="column" gap={4} alignItems="stretch">
+            <Flex gap={2}>
+              <Button variant={direction === 'in' ? 'success' : 'tertiary'} onClick={() => setDirection('in')}>↑ Inkomst</Button>
+              <Button variant={direction === 'uit' ? 'danger' : 'tertiary'} onClick={() => setDirection('uit')}>↓ Uitgave</Button>
+            </Flex>
+            <Flex gap={4}>
+              <Field.Root name="date" width="50%">
+                <Field.Label>Datum</Field.Label>
+                <Field.Input type="date" value={date} onChange={(e: any) => setDate(e.target.value)} />
+              </Field.Root>
+              <Field.Root name="amount" width="50%" hint="Positief bedrag, bv. 119,79">
+                <Field.Label>Bedrag (€)</Field.Label>
+                <Field.Input inputMode="decimal" value={amount} onChange={(e: any) => setAmount(e.target.value)} />
+                <Field.Hint />
+              </Field.Root>
+            </Flex>
+            <Field.Root name="title" hint="Bv. naam van de partner of de omschrijving op het uittreksel">
+              <Field.Label>Titel</Field.Label>
+              <Field.Input value={title} onChange={(e: any) => setTitle(e.target.value)} />
+              <Field.Hint />
+            </Field.Root>
+            <Field.Root name="subtype" hint="Kies een bestaand subtype of typ een nieuw">
+              <Field.Label>Subtype</Field.Label>
+              <Field.Input list="tx-subtypes" value={subtype} onChange={(e: any) => setSubtype(e.target.value)} />
+              <datalist id="tx-subtypes">
+                {subtypes.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+              <Field.Hint />
+            </Field.Root>
+            <Field.Root name="notes">
+              <Field.Label>Notitie (optioneel)</Field.Label>
+              <Field.Input value={notes} onChange={(e: any) => setNotes(e.target.value)} />
+            </Field.Root>
+          </Flex>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="tertiary" onClick={onClose}>Annuleren</Button>
+          <Button
+            loading={busy}
+            disabled={!date || !title.trim() || !amount}
+            onClick={() => onSave({ id: tx.id, date, title, direction, subtype, amount: amount.replace(',', '.') as any, notes })}
+          >
+            Opslaan
+          </Button>
+        </Modal.Footer>
+      </Modal.Content>
+    </Modal.Root>
+  );
+};
+
+const Kpi = ({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) => (
+  <Box background="neutral0" padding={4} hasRadius shadow="tableShadow" minWidth="200px">
+    <Typography variant="sigma" textColor="neutral600">{label}</Typography>
+    <Box paddingTop={1}>
+      <Typography variant="beta" textColor={tone === 'danger' ? 'danger600' : 'neutral800'}>{value}</Typography>
+    </Box>
+  </Box>
+);
+
+export default TransactionsPage;
