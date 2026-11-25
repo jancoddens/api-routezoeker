@@ -53,6 +53,12 @@
     },
     "invoice_id": {
       "type": "integer"
+    },
+    "octopus_number": {
+      "type": "string"
+    },
+    "booked_at": {
+      "type": "date"
     }
   }
 }

@@ -38,11 +38,14 @@ type Tx = {
   attachment?: string;
   invoiceId?: number | null;
   invoiceNumber?: number | null;
+  octopusNumber?: string;
+  bookedAt?: string | null;
+  toBook?: boolean;
 };
 
 type OpenInvoice = { id: number; number: number; name: string; total: number };
 
-type Data = { balance: number; subtypes: string[]; items: Tx[]; openInvoices: OpenInvoice[] };
+type Data = { balance: number; subtypes: string[]; items: Tx[]; openInvoices: OpenInvoice[]; toBookCount: number };
 
 type SortKey = 'number' | 'date' | 'title' | 'direction' | 'subtype' | 'amount';
 
@@ -62,6 +65,8 @@ const TransactionsPage = () => {
   const [sort, setSort] = React.useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: false });
   const [editing, setEditing] = React.useState<Partial<Tx> | null>(null);
   const [deleting, setDeleting] = React.useState<Tx | null>(null);
+  const [booking, setBooking] = React.useState<Tx | null>(null);
+  const [onlyToBook, setOnlyToBook] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
   const fail = (error: any, fallback: string) =>
@@ -84,11 +89,11 @@ const TransactionsPage = () => {
     load();
   }, [load]);
 
-  React.useEffect(() => setPage(1), [search, perPage]);
+  React.useEffect(() => setPage(1), [search, perPage, onlyToBook]);
 
   const q = search.trim().toLowerCase();
   const filtered = (data?.items || []).filter(
-    (t) => !q || `${t.number ?? ''} ${t.date} ${t.title} ${t.subtype} ${t.notes} ${t.amount} ${t.attachment || ''}`.toLowerCase().includes(q),
+    (t) => (!onlyToBook || t.toBook) && (!q || `${t.number ?? ''} ${t.date} ${t.title} ${t.subtype} ${t.notes} ${t.amount} ${t.attachment || ''} ${t.octopusNumber || ''}`.toLowerCase().includes(q)),
   );
   const sorted = [...filtered].sort((a, b) => {
     const k = sort.key;
@@ -113,6 +118,20 @@ const TransactionsPage = () => {
       else await post(API, tx);
       toggleNotification({ type: 'success', message: tx.id ? 'Transactie aangepast' : 'Transactie toegevoegd' });
       setEditing(null);
+      await load();
+    } catch (error) {
+      fail(error, 'Opslaan mislukt');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const book = async (tx: Tx, octopus: string) => {
+    setBusy(true);
+    try {
+      await post(`${API}/${tx.id}/book`, { octopus });
+      toggleNotification({ type: 'success', message: octopus ? `Geboekt in Octopus (${octopus})` : 'Terug op te boeken gezet' });
+      setBooking(null);
       await load();
     } catch (error) {
       fail(error, 'Opslaan mislukt');
@@ -170,6 +189,11 @@ const TransactionsPage = () => {
           <Kpi label={`Inkomsten ${year}`} value={money(inYear)} />
           <Kpi label={`Uitgaven ${year}`} value={money(outYear)} />
           <Kpi label={`Resultaat ${year}`} value={money(inYear - outYear)} tone={inYear - outYear < 0 ? 'danger' : undefined} />
+          <Kpi
+            label="Te boeken in Octopus"
+            value={String(data?.toBookCount ?? 0)}
+            tone={data?.toBookCount ? 'danger' : undefined}
+          />
         </Flex>
 
         <Flex justifyContent="space-between" alignItems="flex-end" gap={4} wrap="wrap" paddingBottom={4}>
@@ -188,6 +212,13 @@ const TransactionsPage = () => {
               </SingleSelect>
             </Box>
             <Typography textColor="neutral600">per pagina</Typography>
+            <Button
+              size="S"
+              variant={onlyToBook ? 'secondary' : 'tertiary'}
+              onClick={() => setOnlyToBook(!onlyToBook)}
+            >
+              Te boeken in Octopus ({data?.toBookCount ?? 0})
+            </Button>
             {q && (
               <Typography textColor="neutral600">
                 · {filtered.length} resultaten, totaal {money(filteredTotal)}
@@ -208,7 +239,7 @@ const TransactionsPage = () => {
           </Box>
         </Flex>
 
-        <Table colCount={7} rowCount={shown.length + 1}>
+        <Table colCount={8} rowCount={shown.length + 1}>
           <Thead>
             <Tr>
               <SortTh k="number">F-ID</SortTh>
@@ -217,6 +248,7 @@ const TransactionsPage = () => {
               <SortTh k="direction">Type</SortTh>
               <SortTh k="subtype">Subtype</SortTh>
               <SortTh k="amount">Bedrag</SortTh>
+              <Th><Typography variant="sigma">Octopus</Typography></Th>
               <Th><Typography variant="sigma">Acties</Typography></Th>
             </Tr>
           </Thead>
@@ -254,6 +286,22 @@ const TransactionsPage = () => {
                   </Typography>
                 </Td>
                 <Td>
+                  {t.toBook ? (
+                    <Button size="S" variant="danger-light" onClick={() => setBooking(t)}>Te boeken</Button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setBooking(t)}
+                      style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+                      title="Octopus-nummer wijzigen"
+                    >
+                      <Typography variant="pi" textColor="success600">
+                        ✓ {t.octopusNumber || 'geboekt'}
+                      </Typography>
+                    </button>
+                  )}
+                </Td>
+                <Td>
                   <Flex gap={2}>
                     <Button size="S" variant="secondary" onClick={() => setEditing(t)}>Bewerken</Button>
                     <Button size="S" variant="danger-light" onClick={() => setDeleting(t)}>Verwijderen</Button>
@@ -263,7 +311,7 @@ const TransactionsPage = () => {
             ))}
             {!shown.length && (
               <Tr>
-                <Td colSpan={7}>
+                <Td colSpan={8}>
                   <Box padding={4}>
                     <Typography textColor="neutral600">{loading ? 'Laden…' : 'Geen transacties gevonden.'}</Typography>
                   </Box>
@@ -299,6 +347,8 @@ const TransactionsPage = () => {
           onSave={save}
         />
       )}
+
+      {booking && <BookDialog tx={booking} busy={busy} onClose={() => setBooking(null)} onSave={book} />}
 
       {deleting && (
         <Modal.Root open onOpenChange={(open: boolean) => !open && setDeleting(null)}>
@@ -448,6 +498,57 @@ const EditDialog = ({
           >
             Opslaan
           </Button>
+        </Modal.Footer>
+      </Modal.Content>
+    </Modal.Root>
+  );
+};
+
+const BookDialog = ({
+  tx,
+  busy,
+  onClose,
+  onSave,
+}: {
+  tx: Tx;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (tx: Tx, octopus: string) => void;
+}) => {
+  const [octopus, setOctopus] = React.useState(tx.octopusNumber || '');
+  return (
+    <Modal.Root open onOpenChange={(open: boolean) => !open && onClose()}>
+      <Modal.Content>
+        <Modal.Header>
+          <Modal.Title>Geboekt in Octopus</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Flex direction="column" gap={4} alignItems="stretch">
+            <Typography>
+              {tx.date} · {tx.title} · {tx.direction === 'in' ? '+' : '-'} {money(tx.amount)}
+            </Typography>
+            <Field.Root
+              name="octopus"
+              hint={
+                tx.invoiceNumber
+                  ? `Wordt ook bij proforma ${tx.invoiceNumber} ingevuld.`
+                  : 'Het boekingsnummer of factuurnummer in Octopus.'
+              }
+            >
+              <Field.Label>Octopus-nummer</Field.Label>
+              <Field.Input value={octopus} onChange={(e: any) => setOctopus(e.target.value)} />
+              <Field.Hint />
+            </Field.Root>
+          </Flex>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="tertiary" onClick={onClose}>Annuleren</Button>
+          <Flex gap={2}>
+            {!tx.toBook && (
+              <Button variant="danger-light" loading={busy} onClick={() => onSave(tx, '')}>Terug op te boeken</Button>
+            )}
+            <Button loading={busy} disabled={!octopus.trim()} onClick={() => onSave(tx, octopus.trim())}>Opslaan</Button>
+          </Flex>
         </Modal.Footer>
       </Modal.Content>
     </Modal.Root>

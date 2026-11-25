@@ -23,12 +23,14 @@ const toRow = (t: any) => ({
   orderId: t.order_id || null,
   attachment: t.attachment || '',
   invoiceId: t.invoice_id || null,
+  octopusNumber: t.octopus_number || '',
+  bookedAt: t.booked_at ? String(t.booked_at).slice(0, 10) : null,
 });
 
 export const listTransactions = async (strapi: Core.Strapi) => {
   const rows = await strapi.db.query(UID).findMany({ orderBy: [{ date: 'desc' }, { number: 'desc' }] });
   const invoices = await strapi.db.query(INVOICE).findMany({
-    select: ['id', 'number', 'partner_name', 'total_incl', 'status_invoice'],
+    select: ['id', 'number', 'partner_name', 'total_incl', 'status_invoice', 'octopus_number'],
     orderBy: { number: 'desc' },
   });
   const byId = new Map(invoices.map((i: any) => [i.id, i]));
@@ -36,6 +38,10 @@ export const listTransactions = async (strapi: Core.Strapi) => {
     const tx: any = toRow(row);
     const inv: any = tx.invoiceId ? byId.get(tx.invoiceId) : null;
     tx.invoiceNumber = inv ? inv.number : null;
+    // Octopus-nummer van de gekoppelde proforma telt ook.
+    if (!tx.octopusNumber && inv?.octopus_number) tx.octopusNumber = inv.octopus_number;
+    // Nog niet in de officiële boekhouding (Octopus): geen nummer en niet afgevinkt.
+    tx.toBook = !tx.octopusNumber && !tx.bookedAt;
     return tx;
   });
   // Proforma's die nog op betaling wachten: om te koppelen bij een nieuwe inkomst.
@@ -44,7 +50,8 @@ export const listTransactions = async (strapi: Core.Strapi) => {
     .map((i: any) => ({ id: i.id, number: i.number, name: i.partner_name || '', total: Number(i.total_incl || 0) }));
   const balance = round2(items.reduce((sum, t) => sum + (t.direction === 'uit' ? -t.amount : t.amount), 0));
   const subtypes = [...new Set(items.map((t) => t.subtype).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'nl'));
-  return { balance, subtypes, items, openInvoices };
+  const toBookCount = items.filter((t: any) => t.toBook).length;
+  return { balance, subtypes, items, openInvoices, toBookCount };
 };
 
 const clean = (body: any) => {
@@ -149,4 +156,33 @@ export const importTransactions = async (strapi: Core.Strapi, rows: any[]) => {
     }
   }
   return { created, updated, errors };
+};
+
+// Afvinken als geboekt in Octopus (met boekingsnummer). Leeg nummer = terug op "te boeken".
+// Is de transactie aan een proforma gekoppeld, dan krijgt die proforma hetzelfde nummer.
+export const bookTransaction = async (strapi: Core.Strapi, id: number, body: any) => {
+  const existing = await strapi.db.query(UID).findOne({ where: { id } });
+  if (!existing) throw new Error('Transactie niet gevonden');
+  const octopus = String(body?.octopus || '').trim().slice(0, 100);
+  const data = octopus
+    ? { octopus_number: octopus, booked_at: new Date().toISOString().slice(0, 10) }
+    : { octopus_number: null, booked_at: null };
+  if (existing.invoice_id) {
+    await updateStatus(strapi, existing.invoice_id, { octopus });
+  }
+  return toRow(await strapi.db.query(UID).update({ where: { id }, data }));
+};
+
+// Alles tot en met een datum als geboekt markeren (bv. wat in het oude systeem al in Octopus stond).
+export const bookUntil = async (strapi: Core.Strapi, body: any) => {
+  const until = String(body?.until || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new Error('Geef een geldige datum');
+  const rows = await strapi.db.query(UID).findMany({
+    where: { date: { $lte: until }, octopus_number: { $null: true }, booked_at: { $null: true } },
+    select: ['id'],
+  });
+  for (const row of rows) {
+    await strapi.db.query(UID).update({ where: { id: row.id }, data: { booked_at: until } });
+  }
+  return { updated: rows.length };
 };

@@ -4,7 +4,15 @@ import { buildRouteAutofill } from './utils/gpx-autofill';
 import { ensurePartnerInviteCodes } from './utils/partner-invite';
 import { createInvoice, ensureInvoiceSetup, getOverview, renderPdf, sendInvoiceMail, setSubscriptionOnline, updateStatus } from './utils/partner-invoicing';
 import { ensureProspectSetup, MAX_PER_BATCH, queueMails, sendTestMail, type MailKind } from './utils/prospect-mailer';
-import { createTransaction, deleteTransaction, importTransactions, listTransactions, updateTransaction } from './utils/transactions';
+import {
+  bookTransaction,
+  bookUntil,
+  createTransaction,
+  deleteTransaction,
+  importTransactions,
+  listTransactions,
+  updateTransaction,
+} from './utils/transactions';
 
 export default {
   /**
@@ -128,6 +136,13 @@ export default {
           method: 'POST',
           path: '/import',
           handler: guard((ctx) => importTransactions(strapi, ctx.request.body?.rows)),
+          config: adminOnly,
+        },
+        { method: 'POST', path: '/book-until', handler: guard((ctx) => bookUntil(strapi, ctx.request.body || {})), config: adminOnly },
+        {
+          method: 'POST',
+          path: '/:id/book',
+          handler: guard((ctx) => bookTransaction(strapi, Number(ctx.params.id), ctx.request.body || {})),
           config: adminOnly,
         },
         {
