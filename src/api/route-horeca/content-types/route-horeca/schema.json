@@ -1,0 +1,36 @@
+{
+  "kind": "collectionType",
+  "collectionName": "route_horecas",
+  "info": {
+    "singularName": "route-horeca",
+    "pluralName": "route-horecas",
+    "displayName": "Route horeca",
+    "description": "Vooraf berekende eet- en drinkgelegenheden per route (OpenStreetMap). Wordt gevuld door scripts/sync-route-horeca.js; niet met de hand aanpassen."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "route_document_id": {
+      "type": "string",
+      "unique": true,
+      "required": true
+    },
+    "route_title": {
+      "type": "string"
+    },
+    "gpx_url": {
+      "type": "string"
+    },
+    "item_count": {
+      "type": "integer"
+    },
+    "data": {
+      "type": "json"
+    },
+    "computed_at": {
+      "type": "datetime"
+    }
+  }
+}

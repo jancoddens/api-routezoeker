@@ -27,7 +27,8 @@
     "import:prospects": "node scripts/import-prospects.js",
     "import:legacy-orders": "node scripts/import-legacy-orders.js",
     "import:legacy-proformas": "node scripts/import-legacy-proformas.js",
-    "import:horeca-prospects": "node scripts/import-horeca-prospects.js"
+    "import:horeca-prospects": "node scripts/import-horeca-prospects.js",
+    "sync:route-horeca": "node scripts/sync-route-horeca.js"
   },
   "dependencies": {
     "@strapi/plugin-cloud": "5.60.0",

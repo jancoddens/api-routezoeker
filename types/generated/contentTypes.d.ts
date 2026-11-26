@@ -2507,6 +2507,42 @@ export interface ApiReviewReview extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiRouteHorecaRouteHoreca extends Struct.CollectionTypeSchema {
+  collectionName: 'route_horecas';
+  info: {
+    description: 'Vooraf berekende eet- en drinkgelegenheden per route (OpenStreetMap). Wordt gevuld door scripts/sync-route-horeca.js; niet met de hand aanpassen.';
+    displayName: 'Route horeca';
+    pluralName: 'route-horecas';
+    singularName: 'route-horeca';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    computed_at: Schema.Attribute.DateTime;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    data: Schema.Attribute.JSON;
+    gpx_url: Schema.Attribute.String;
+    item_count: Schema.Attribute.Integer;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::route-horeca.route-horeca'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    route_document_id: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    route_title: Schema.Attribute.String;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiRouteTypeRouteType extends Struct.CollectionTypeSchema {
   collectionName: 'route_types';
   info: {
@@ -3530,6 +3566,7 @@ declare module '@strapi/strapi' {
       'api::province.province': ApiProvinceProvince;
       'api::region.region': ApiRegionRegion;
       'api::review.review': ApiReviewReview;
+      'api::route-horeca.route-horeca': ApiRouteHorecaRouteHoreca;
       'api::route-type.route-type': ApiRouteTypeRouteType;
       'api::route.route': ApiRouteRoute;
       'api::tag.tag': ApiTagTag;
